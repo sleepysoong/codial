@@ -16,6 +16,7 @@ def test_policy_engine_allows_explicit_allowed_provider_and_model() -> None:
         provider="openai-api",
         model="gpt-5-mini",
         constraints=constraints,
+        available_skills=set(),
     )
 
 
@@ -27,4 +28,17 @@ def test_policy_engine_blocks_denied_provider() -> None:
             provider="openai-codex",
             model="gpt-5-mini",
             constraints=constraints,
+            available_skills=set(),
+        )
+
+
+def test_policy_engine_blocks_when_required_skill_missing() -> None:
+    rules_text = "required_skills: session_bootstrap.yaml"
+    constraints = parse_policy_constraints(rules_text)
+    with pytest.raises(ValidationError):
+        enforce_provider_and_model(
+            provider="openai-api",
+            model="gpt-5-mini",
+            constraints=constraints,
+            available_skills=set(),
         )

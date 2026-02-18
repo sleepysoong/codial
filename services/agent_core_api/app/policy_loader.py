@@ -19,6 +19,7 @@ class PolicySnapshot:
     skills_summary: str
     rules_text: str
     agents_text: str
+    available_skills: list[str]
 
 
 class PolicyLoader:
@@ -31,7 +32,9 @@ class PolicyLoader:
 
         rules_summary = self._read_headline(rules_path)
         agents_summary = self._read_headline(agents_path)
-        skills_summary = self._read_skills_summary(self._workspace_root / "skills")
+        skills_dir = self._workspace_root / "skills"
+        available_skills = self._read_skills(skills_dir)
+        skills_summary = ", ".join(available_skills) if available_skills else "스킬 파일이 없어요."
 
         rules_text = self._read_full_text(rules_path)
         agents_text = self._read_full_text(agents_path)
@@ -41,6 +44,7 @@ class PolicyLoader:
             skills_summary=skills_summary,
             rules_text=rules_text,
             agents_text=agents_text,
+            available_skills=available_skills,
         )
 
     def _read_headline(self, path: Path) -> str:
@@ -58,13 +62,10 @@ class PolicyLoader:
             return ""
         return path.read_text(encoding="utf-8")
 
-    def _read_skills_summary(self, skills_dir: Path) -> str:
+    def _read_skills(self, skills_dir: Path) -> list[str]:
         if not skills_dir.exists() or not skills_dir.is_dir():
-            return "스킬 디렉토리가 없어요."
-        skill_files = sorted([path.name for path in skills_dir.glob("*.yaml")])
-        if not skill_files:
-            return "스킬 파일이 없어요."
-        return ", ".join(skill_files)
+            return []
+        return sorted([path.name for path in skills_dir.glob("*.yaml")])
 
 
 def extract_agent_defaults(agents_text: str) -> AgentDefaults:

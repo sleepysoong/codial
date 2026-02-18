@@ -11,6 +11,7 @@ class PolicyConstraints:
     deny_providers: set[str]
     allow_models: set[str]
     deny_models: set[str]
+    required_skills: set[str]
 
 
 def parse_policy_constraints(rules_text: str) -> PolicyConstraints:
@@ -19,6 +20,7 @@ def parse_policy_constraints(rules_text: str) -> PolicyConstraints:
         deny_providers=set(),
         allow_models=set(),
         deny_models=set(),
+        required_skills=set(),
     )
 
     for line in rules_text.splitlines():
@@ -41,11 +43,18 @@ def parse_policy_constraints(rules_text: str) -> PolicyConstraints:
             constraints.allow_models.update(values)
         elif key == "deny_models":
             constraints.deny_models.update(values)
+        elif key == "required_skills":
+            constraints.required_skills.update(values)
 
     return constraints
 
 
-def enforce_provider_and_model(provider: str, model: str, constraints: PolicyConstraints) -> None:
+def enforce_provider_and_model(
+    provider: str,
+    model: str,
+    constraints: PolicyConstraints,
+    available_skills: set[str],
+) -> None:
     if constraints.allow_providers and provider not in constraints.allow_providers:
         allowed_text = ", ".join(sorted(constraints.allow_providers))
         raise ValidationError(
@@ -63,6 +72,15 @@ def enforce_provider_and_model(provider: str, model: str, constraints: PolicyCon
 
     if model in constraints.deny_models:
         raise ValidationError(f"RULES 정책으로 인해 `{model}` 모델을 사용할 수 없어요.")
+
+    if constraints.required_skills:
+        missing_skills = constraints.required_skills - available_skills
+        if missing_skills:
+            missing_text = ", ".join(sorted(missing_skills))
+            raise ValidationError(
+                "RULES 정책으로 필수 스킬이 필요하지만 찾지 못했어요: "
+                f"{missing_text}"
+            )
 
 
 def _parse_key_value_line(line: str) -> tuple[str, str] | None:

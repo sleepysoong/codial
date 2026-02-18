@@ -148,6 +148,7 @@ class TurnWorkerPool:
             provider=task.provider,
             model=task.model,
             constraints=policy_constraints,
+            available_skills=set(policy_snapshot.available_skills),
         )
 
         provider_adapter = self._provider_manager.resolve(task.provider)
