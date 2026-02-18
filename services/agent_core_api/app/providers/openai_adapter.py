@@ -34,6 +34,7 @@ class OpenAiProviderAdapter(ProviderAdapter):
             f"- 첨부파일: {attachment_summary}\n"
             f"- MCP 활성화: {request.mcp_enabled}\n"
             f"- MCP 프로필: {request.mcp_profile_name or '없음'}\n"
+            f"- CLAUDE.md 메모리: {request.claude_memory_summary}\n"
             f"- RULES 요약: {request.rules_summary}\n"
             f"- AGENTS 요약: {request.agents_summary}\n"
             f"- Skills 요약: {request.skills_summary}\n"

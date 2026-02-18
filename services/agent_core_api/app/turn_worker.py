@@ -133,6 +133,7 @@ class TurnWorkerPool:
             {
                 "text": (
                     "정책 파일을 로드했어요. "
+                    f"CLAUDE.md=`{policy_snapshot.claude_memory_summary}`, "
                     f"RULES=`{policy_snapshot.rules_summary}`, "
                     f"AGENTS=`{policy_snapshot.agents_summary}`, "
                     f"SKILLS=`{policy_snapshot.skills_summary}`"
@@ -184,6 +185,7 @@ class TurnWorkerPool:
             rules_summary=policy_snapshot.rules_summary,
             agents_summary=policy_snapshot.agents_summary,
             skills_summary=policy_snapshot.skills_summary,
+            claude_memory_summary=policy_snapshot.claude_memory_summary,
         )
         provider_response = await provider_adapter.generate(provider_request)
 

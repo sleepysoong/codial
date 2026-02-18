@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from services.agent_core_api.app.claude_memory_loader import load_claude_memories
 from services.agent_core_api.app.skills_spec import discover_claude_skills
 
 
@@ -22,6 +23,8 @@ class PolicySnapshot:
     rules_text: str
     agents_text: str
     available_skills: list[str]
+    claude_memory_summary: str
+    claude_memory_text: str
 
 
 class PolicyLoader:
@@ -36,6 +39,12 @@ class PolicyLoader:
         agents_summary = self._read_headline(agents_path)
         available_skills = self._read_skills()
         skills_summary = ", ".join(available_skills) if available_skills else "스킬이 없어요."
+        memory_snapshot = load_claude_memories(str(self._workspace_root))
+        memory_summary = (
+            ", ".join(memory_snapshot.loaded_paths)
+            if memory_snapshot.loaded_paths
+            else "CLAUDE.md 메모리가 없어요."
+        )
 
         rules_text = self._read_full_text(rules_path)
         agents_text = self._read_full_text(agents_path)
@@ -46,6 +55,8 @@ class PolicyLoader:
             rules_text=rules_text,
             agents_text=agents_text,
             available_skills=available_skills,
+            claude_memory_summary=memory_summary,
+            claude_memory_text=memory_snapshot.merged_text,
         )
 
     def _read_headline(self, path: Path) -> str:
@@ -68,7 +79,11 @@ class PolicyLoader:
             self._workspace_root / ".claude" / "skills",
             Path.home() / ".claude" / "skills",
         ]
-        claude_skills = discover_claude_skills(claude_skill_paths)
+        command_paths = [
+            self._workspace_root / ".claude" / "commands",
+            Path.home() / ".claude" / "commands",
+        ]
+        claude_skills = discover_claude_skills(claude_skill_paths, command_paths)
         claude_names = {skill.name for skill in claude_skills}
 
         legacy_skills = sorted(

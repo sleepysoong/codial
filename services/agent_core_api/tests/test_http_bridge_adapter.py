@@ -28,6 +28,7 @@ async def test_http_bridge_adapter_requires_base_url() -> None:
         rules_summary="rules",
         agents_summary="agents",
         skills_summary="skills",
+        claude_memory_summary="memory",
     )
     with pytest.raises(ConfigurationError):
         await adapter.generate(request)

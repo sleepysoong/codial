@@ -18,6 +18,7 @@ class ProviderRequest:
     rules_summary: str
     agents_summary: str
     skills_summary: str
+    claude_memory_summary: str
 
 
 @dataclass(slots=True)
