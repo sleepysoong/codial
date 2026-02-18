@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from libs.common.logging import get_logger
+from services.agent_core_api.app.attachment_ingestor import AttachmentIngestor
 from services.agent_core_api.app.event_sink import GatewayEventSink
 from services.agent_core_api.app.models import TurnAttachment
 from services.agent_core_api.app.policy_engine import (
@@ -37,11 +38,13 @@ class TurnWorkerPool:
     def __init__(
         self,
         sink: GatewayEventSink,
+        attachment_ingestor: AttachmentIngestor,
         provider_manager: ProviderManager,
         policy_loader: PolicyLoader,
         worker_count: int,
     ) -> None:
         self._sink = sink
+        self._attachment_ingestor = attachment_ingestor
         self._provider_manager = provider_manager
         self._policy_loader = policy_loader
         self._worker_count = worker_count
@@ -133,6 +136,13 @@ class TurnWorkerPool:
                 )
             },
         )
+
+        ingest_result = await self._attachment_ingestor.ingest(
+            session_id=task.session_id,
+            turn_id=task.turn_id,
+            attachments=task.attachments,
+        )
+        await self._emit(task, "action", {"text": ingest_result.summary})
 
         enforce_provider_and_model(
             provider=task.provider,

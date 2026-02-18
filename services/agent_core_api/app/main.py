@@ -7,6 +7,7 @@ from fastapi import FastAPI
 
 from libs.common.http_handlers import register_exception_handlers
 from libs.common.logging import configure_logging
+from services.agent_core_api.app.attachment_ingestor import AttachmentIngestor
 from services.agent_core_api.app.event_sink import GatewayEventSink
 from services.agent_core_api.app.policy_loader import PolicyLoader
 from services.agent_core_api.app.providers.http_bridge_adapter import HttpBridgeProviderAdapter
@@ -49,8 +50,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         ]
     )
     policy_loader = PolicyLoader(workspace_root=settings.workspace_root)
+    attachment_ingestor = AttachmentIngestor(
+        download_enabled=settings.attachment_download_enabled,
+        max_bytes=settings.attachment_download_max_bytes,
+        storage_dir=settings.attachment_storage_dir,
+        timeout_seconds=settings.request_timeout_seconds,
+    )
     worker_pool = TurnWorkerPool(
         sink=sink,
+        attachment_ingestor=attachment_ingestor,
         provider_manager=provider_manager,
         policy_loader=policy_loader,
         worker_count=settings.turn_worker_count,

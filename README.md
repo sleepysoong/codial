@@ -25,6 +25,8 @@ set CORE_CODEX_BRIDGE_BASE_URL=http://localhost:8091
 set CORE_CODEX_BRIDGE_TOKEN=your_codex_bridge_token
 set CORE_COPILOT_BRIDGE_BASE_URL=http://localhost:8092
 set CORE_COPILOT_BRIDGE_TOKEN=your_copilot_bridge_token
+set CORE_ATTACHMENT_DOWNLOAD_ENABLED=false
+set CORE_ATTACHMENT_STORAGE_DIR=.runtime/attachments
 
 set DGW_CORE_API_BASE_URL=http://localhost:8081
 set DGW_CORE_API_TOKEN=dev-core-token
@@ -54,6 +56,7 @@ uvicorn services.discord_gateway.app.main:app --host 0.0.0.0 --port 8080 --reloa
 - `/provider`, `/model`, `/mcp` 명령은 세션별 실행 설정을 변경해요.
 - `/ask` 명령은 `attachment` 옵션으로 파일 1개를 함께 전달할 수 있어요.
 - `openai-codex`와 `github-copilot-sdk`는 HTTP 브리지 방식으로 연결해요.
+- 첨부파일은 기본적으로 메타데이터만 처리하고, 옵션으로 다운로드 저장을 켤 수 있어요.
 
 ## 품질 검사 명령
 
