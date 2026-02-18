@@ -9,6 +9,10 @@ from typing import Any
 from libs.common.logging import get_logger
 from services.agent_core_api.app.event_sink import GatewayEventSink
 from services.agent_core_api.app.models import TurnAttachment
+from services.agent_core_api.app.policy_engine import (
+    enforce_provider_and_model,
+    parse_policy_constraints,
+)
 from services.agent_core_api.app.policy_loader import PolicyLoader
 from services.agent_core_api.app.providers.base import ProviderRequest
 from services.agent_core_api.app.providers.manager import ProviderManager
@@ -104,6 +108,7 @@ class TurnWorkerPool:
 
     async def _process_task(self, task: TurnTask) -> None:
         policy_snapshot = self._policy_loader.load()
+        policy_constraints = parse_policy_constraints(policy_snapshot.rules_text)
         attachment_count = len(task.attachments)
 
         await self._emit(
@@ -127,6 +132,12 @@ class TurnWorkerPool:
                     f"SKILLS=`{policy_snapshot.skills_summary}`"
                 )
             },
+        )
+
+        enforce_provider_and_model(
+            provider=task.provider,
+            model=task.model,
+            constraints=policy_constraints,
         )
 
         provider_adapter = self._provider_manager.resolve(task.provider)

@@ -9,6 +9,8 @@ class PolicySnapshot:
     rules_summary: str
     agents_summary: str
     skills_summary: str
+    rules_text: str
+    agents_text: str
 
 
 class PolicyLoader:
@@ -16,13 +18,21 @@ class PolicyLoader:
         self._workspace_root = Path(workspace_root)
 
     def load(self) -> PolicySnapshot:
-        rules_summary = self._read_headline(self._workspace_root / "RULES.md")
-        agents_summary = self._read_headline(self._workspace_root / "AGENTS.md")
+        rules_path = self._workspace_root / "RULES.md"
+        agents_path = self._workspace_root / "AGENTS.md"
+
+        rules_summary = self._read_headline(rules_path)
+        agents_summary = self._read_headline(agents_path)
         skills_summary = self._read_skills_summary(self._workspace_root / "skills")
+
+        rules_text = self._read_full_text(rules_path)
+        agents_text = self._read_full_text(agents_path)
         return PolicySnapshot(
             rules_summary=rules_summary,
             agents_summary=agents_summary,
             skills_summary=skills_summary,
+            rules_text=rules_text,
+            agents_text=agents_text,
         )
 
     def _read_headline(self, path: Path) -> str:
@@ -34,6 +44,11 @@ class PolicyLoader:
             if stripped:
                 return stripped[:200]
         return "내용이 비어 있어요."
+
+    def _read_full_text(self, path: Path) -> str:
+        if not path.exists():
+            return ""
+        return path.read_text(encoding="utf-8")
 
     def _read_skills_summary(self, skills_dir: Path) -> str:
         if not skills_dir.exists() or not skills_dir.is_dir():
