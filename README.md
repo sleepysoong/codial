@@ -21,6 +21,10 @@ set CORE_GATEWAY_BASE_URL=http://localhost:8080
 set CORE_GATEWAY_INTERNAL_TOKEN=dev-internal-token
 set CORE_OPENAI_API_KEY=your_openai_api_key
 set CORE_WORKSPACE_ROOT=C:\\Users\\Administrator\\Desktop\\code
+set CORE_CODEX_BRIDGE_BASE_URL=http://localhost:8091
+set CORE_CODEX_BRIDGE_TOKEN=your_codex_bridge_token
+set CORE_COPILOT_BRIDGE_BASE_URL=http://localhost:8092
+set CORE_COPILOT_BRIDGE_TOKEN=your_copilot_bridge_token
 
 set DGW_CORE_API_BASE_URL=http://localhost:8081
 set DGW_CORE_API_TOKEN=dev-core-token
@@ -49,6 +53,7 @@ uvicorn services.discord_gateway.app.main:app --host 0.0.0.0 --port 8080 --reloa
 - `/end` 명령은 세션 상태를 종료로 변경하고 채널에 안내 메시지를 남겨요.
 - `/provider`, `/model`, `/mcp` 명령은 세션별 실행 설정을 변경해요.
 - `/ask` 명령은 `attachment` 옵션으로 파일 1개를 함께 전달할 수 있어요.
+- `openai-codex`와 `github-copilot-sdk`는 HTTP 브리지 방식으로 연결해요.
 
 ## 품질 검사 명령
 

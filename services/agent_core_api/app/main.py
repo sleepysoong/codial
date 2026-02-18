@@ -9,9 +9,9 @@ from libs.common.http_handlers import register_exception_handlers
 from libs.common.logging import configure_logging
 from services.agent_core_api.app.event_sink import GatewayEventSink
 from services.agent_core_api.app.policy_loader import PolicyLoader
+from services.agent_core_api.app.providers.http_bridge_adapter import HttpBridgeProviderAdapter
 from services.agent_core_api.app.providers.manager import ProviderManager
 from services.agent_core_api.app.providers.openai_adapter import OpenAiProviderAdapter
-from services.agent_core_api.app.providers.placeholder_adapter import PlaceholderProviderAdapter
 from services.agent_core_api.app.routes import router
 from services.agent_core_api.app.settings import settings
 from services.agent_core_api.app.turn_worker import TurnWorkerPool
@@ -32,13 +32,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 api_key=settings.openai_api_key,
                 timeout_seconds=settings.openai_request_timeout_seconds,
             ),
-            PlaceholderProviderAdapter(
+            HttpBridgeProviderAdapter(
                 name="openai-codex",
-                description="Codex CLI 브리지 연동은 다음 단계에서 연결해요.",
+                base_url=settings.codex_bridge_base_url,
+                token=settings.codex_bridge_token,
+                timeout_seconds=settings.provider_bridge_timeout_seconds,
+                provider_hint="Codex",
             ),
-            PlaceholderProviderAdapter(
+            HttpBridgeProviderAdapter(
                 name="github-copilot-sdk",
-                description="GitHub Copilot SDK 연동은 다음 단계에서 연결해요.",
+                base_url=settings.copilot_bridge_base_url,
+                token=settings.copilot_bridge_token,
+                timeout_seconds=settings.provider_bridge_timeout_seconds,
+                provider_hint="GitHub Copilot SDK",
             ),
         ]
     )

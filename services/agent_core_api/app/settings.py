@@ -16,6 +16,11 @@ class Settings(BaseSettings):
     turn_worker_count: int = 2
     openai_api_key: str = ""
     openai_request_timeout_seconds: float = 45.0
+    codex_bridge_base_url: str = ""
+    codex_bridge_token: str = ""
+    copilot_bridge_base_url: str = ""
+    copilot_bridge_token: str = ""
+    provider_bridge_timeout_seconds: float = 30.0
     workspace_root: str = "."
 
 
