@@ -38,7 +38,7 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["libs*", "services*"]
+include = ["libs*"]
 exclude = ["skills*", "docs*", "tests*"]
 
 [tool.ruff]
@@ -77,8 +77,10 @@ disallow_any_generics = true
 no_implicit_optional = true
 show_error_codes = true
 pretty = true
+mypy_path = ["codial-service", "codial-discord"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["services", "libs"]
-addopts = "-q --maxfail=1 --disable-warnings --cov=services --cov=libs --cov-report=term-missing"
+testpaths = ["codial-service/tests", "codial-discord/tests", "libs"]
+pythonpath = [".", "codial-service", "codial-discord"]
+addopts = "-q --maxfail=1 --disable-warnings --cov=codial_service --cov=codial_discord --cov=libs --cov-report=term-missing"

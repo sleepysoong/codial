@@ -8,6 +8,10 @@ __pycache__/
 venv/
 env/
 
+# Local environment files
+.env
+*.env.local
+
 # Test and coverage artifacts
 .pytest_cache/
 .coverage
@@ -26,6 +30,11 @@ dist/
 # IDE/editor
 .idea/
 .vscode/
+
+# Runtime directories
+.runtime/
+codial-service/.runtime/
+codial-discord/.runtime/
 
 # OS files
 .DS_Store

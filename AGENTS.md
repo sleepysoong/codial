@@ -1,6 +1,6 @@
 # Agent Profiles
 
-default_provider: openai-api
+default_provider: github-copilot-sdk
 default_model: gpt-5-mini
 default_mcp_enabled: true
 default_mcp_profile: default
