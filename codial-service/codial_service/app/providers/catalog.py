@@ -4,12 +4,9 @@ from typing import Protocol
 
 from codial_service.app.providers.base import ProviderAdapter
 from codial_service.app.providers.http_bridge_adapter import HttpBridgeProviderAdapter
-from codial_service.app.providers.openai_adapter import OpenAiProviderAdapter
 from libs.common.errors import ConfigurationError
 
 KNOWN_PROVIDER_NAMES = {
-    "openai-api",
-    "openai-codex",
     "github-copilot-sdk",
 }
 
@@ -17,10 +14,6 @@ KNOWN_PROVIDER_NAMES = {
 class ProviderRuntimeSettings(Protocol):
     default_provider_name: str
     enabled_provider_names: str
-    openai_api_key: str
-    openai_request_timeout_seconds: float
-    codex_bridge_base_url: str
-    codex_bridge_token: str
     copilot_bridge_base_url: str
     copilot_bridge_token: str
     provider_bridge_timeout_seconds: float
@@ -61,24 +54,7 @@ def build_provider_adapters(
 
     adapters: list[ProviderAdapter] = []
     for provider_name in active_providers:
-        if provider_name == "openai-api":
-            adapters.append(
-                OpenAiProviderAdapter(
-                    api_key=settings.openai_api_key,
-                    timeout_seconds=settings.openai_request_timeout_seconds,
-                )
-            )
-        elif provider_name == "openai-codex":
-            adapters.append(
-                HttpBridgeProviderAdapter(
-                    name="openai-codex",
-                    base_url=settings.codex_bridge_base_url,
-                    token=settings.codex_bridge_token,
-                    timeout_seconds=settings.provider_bridge_timeout_seconds,
-                    provider_hint="Codex",
-                )
-            )
-        elif provider_name == "github-copilot-sdk":
+        if provider_name == "github-copilot-sdk":
             adapters.append(
                 HttpBridgeProviderAdapter(
                     name="github-copilot-sdk",

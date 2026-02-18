@@ -28,7 +28,7 @@ def test_policy_loader_reads_workspace_files(tmp_path: Path) -> None:
 
 
 def test_provider_manager_rejects_unknown_provider() -> None:
-    manager = ProviderManager(adapters=[PlaceholderProviderAdapter(name="openai-codex", description="테스트")])
+    manager = ProviderManager(adapters=[PlaceholderProviderAdapter(name="github-copilot-sdk", description="테스트")])
     with pytest.raises(ValidationError):
         manager.resolve("unknown-provider")
 

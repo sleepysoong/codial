@@ -9,7 +9,7 @@ async def _create_session(local_store: InMemorySessionStore, key: str) -> Sessio
         "g1",
         "u1",
         key,
-        default_provider="openai-api",
+        default_provider="github-copilot-sdk",
         default_model="gpt-5-mini",
         default_mcp_enabled=True,
         default_mcp_profile_name="default",
@@ -45,8 +45,8 @@ async def test_set_provider_model_and_mcp() -> None:
     local_store = InMemorySessionStore()
     record = await _create_session(local_store, "k4")
 
-    provider_updated = await local_store.set_provider(record.session_id, "openai-codex")
-    assert provider_updated.provider == "openai-codex"
+    provider_updated = await local_store.set_provider(record.session_id, "github-copilot-sdk")
+    assert provider_updated.provider == "github-copilot-sdk"
 
     model_updated = await local_store.set_model(record.session_id, "gpt-5")
     assert model_updated.model == "gpt-5"

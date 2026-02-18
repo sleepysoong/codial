@@ -16,10 +16,6 @@ from libs.common.errors import ConfigurationError
 class _SettingsStub:
     default_provider_name: str = "github-copilot-sdk"
     enabled_provider_names: str = "github-copilot-sdk"
-    openai_api_key: str = ""
-    openai_request_timeout_seconds: float = 30.0
-    codex_bridge_base_url: str = "http://codex.local"
-    codex_bridge_token: str = ""
     copilot_bridge_base_url: str = "http://copilot.local"
     copilot_bridge_token: str = ""
     provider_bridge_timeout_seconds: float = 30.0
@@ -36,10 +32,10 @@ def test_get_enabled_provider_names_rejects_unknown() -> None:
 
 
 def test_choose_default_provider_falls_back_to_first_enabled() -> None:
-    selected = choose_default_provider("openai-api", ["github-copilot-sdk", "openai-api"])
-    assert selected == "openai-api"
+    selected = choose_default_provider("github-copilot-sdk", ["github-copilot-sdk", "provider-x"])
+    assert selected == "github-copilot-sdk"
 
-    selected_fallback = choose_default_provider("openai-codex", ["github-copilot-sdk"])
+    selected_fallback = choose_default_provider("provider-x", ["github-copilot-sdk"])
     assert selected_fallback == "github-copilot-sdk"
 
 

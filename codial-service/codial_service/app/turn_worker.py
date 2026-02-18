@@ -16,13 +16,18 @@ from codial_service.app.policy_engine import (
     parse_policy_constraints,
 )
 from codial_service.app.policy_loader import PolicyLoader
-from codial_service.app.providers.base import ProviderRequest
+from codial_service.app.providers.base import (
+    ProviderRequest,
+    ProviderToolResult,
+    ProviderToolSpec,
+)
 from codial_service.app.providers.manager import ProviderManager
 from codial_service.app.subagent_spec import SubagentSpec, discover_subagents
 from libs.common.errors import UpstreamTransientError
 from libs.common.logging import get_logger
 
 logger = get_logger("codial_service.turn_worker")
+MAX_TOOL_CALL_ROUNDS = 5
 
 
 @dataclass(slots=True)
@@ -213,6 +218,7 @@ class TurnWorkerPool:
         )
         await self._emit(task, "action", {"text": ingest_result.summary})
 
+        mcp_tools: list[ProviderToolSpec] = []
         if effective_mcp_enabled and self._mcp_client is not None:
             initialize_result = await self._mcp_client.initialize(
                 client_name="codial-core",
@@ -227,7 +233,18 @@ class TurnWorkerPool:
             template_count = 0
 
             try:
-                tools_count = len(await self._mcp_client.list_tools())
+                raw_tools = await self._mcp_client.list_tools()
+                tools_count = len(raw_tools)
+                mcp_tools = [
+                    ProviderToolSpec(
+                        name=tool.name,
+                        title=tool.title,
+                        description=tool.description,
+                        input_schema=tool.input_schema,
+                        output_schema=tool.output_schema,
+                    )
+                    for tool in raw_tools
+                ]
             except UpstreamTransientError as exc:
                 logger.warning("mcp_tools_list_failed", session_id=task.session_id, error=str(exc))
 
@@ -272,25 +289,95 @@ class TurnWorkerPool:
         )
 
         provider_adapter = self._provider_manager.resolve(task.provider)
-        provider_request = ProviderRequest(
-            session_id=task.session_id,
-            user_id=task.user_id,
-            provider=task.provider,
-            model=effective_model,
-            text=effective_text,
-            attachments=task.attachments,
-            mcp_enabled=effective_mcp_enabled,
-            mcp_profile_name=effective_mcp_profile_name,
-            rules_summary=policy_snapshot.rules_summary,
-            agents_summary=policy_snapshot.agents_summary,
-            skills_summary=policy_snapshot.skills_summary,
-            claude_memory_summary=effective_claude_memory_summary,
-        )
-        provider_response = await provider_adapter.generate(provider_request)
+        next_tool_results: list[ProviderToolResult] = []
 
-        await self._emit(task, "decision_summary", {"text": provider_response.decision_summary})
-        await self._emit(task, "response_delta", {"text": provider_response.output_text})
-        await self._emit(task, "final", {"text": "작업을 완료했어요."})
+        for round_index in range(MAX_TOOL_CALL_ROUNDS):
+            provider_request = ProviderRequest(
+                session_id=task.session_id,
+                user_id=task.user_id,
+                provider=task.provider,
+                model=effective_model,
+                text=effective_text,
+                attachments=task.attachments,
+                mcp_enabled=effective_mcp_enabled,
+                mcp_profile_name=effective_mcp_profile_name,
+                rules_summary=policy_snapshot.rules_summary,
+                agents_summary=policy_snapshot.agents_summary,
+                skills_summary=policy_snapshot.skills_summary,
+                claude_memory_summary=effective_claude_memory_summary,
+                mcp_tools=mcp_tools,
+                tool_results=next_tool_results,
+                tool_call_round=round_index,
+            )
+            provider_response = await provider_adapter.generate(provider_request)
+
+            await self._emit(task, "decision_summary", {"text": provider_response.decision_summary})
+            if provider_response.output_text:
+                await self._emit(task, "response_delta", {"text": provider_response.output_text})
+
+            if not provider_response.tool_requests:
+                await self._emit(task, "final", {"text": "작업을 완료했어요."})
+                return
+
+            if not effective_mcp_enabled:
+                await self._emit(
+                    task,
+                    "action",
+                    {"text": "프로바이더가 도구 호출을 요청했지만 MCP가 비활성 상태라 도구를 실행하지 않았어요."},
+                )
+                await self._emit(task, "final", {"text": "도구 요청을 처리하지 못해 작업을 종료했어요."})
+                return
+
+            if self._mcp_client is None:
+                await self._emit(
+                    task,
+                    "action",
+                    {"text": "프로바이더가 도구 호출을 요청했지만 MCP 클라이언트가 없어 실행하지 못했어요."},
+                )
+                await self._emit(task, "final", {"text": "도구 요청을 처리하지 못해 작업을 종료했어요."})
+                return
+
+            next_tool_results = []
+            for tool_request in provider_response.tool_requests:
+                try:
+                    tool_result = await self._mcp_client.call_tool(
+                        name=tool_request.name,
+                        arguments=tool_request.arguments,
+                    )
+                    next_tool_results.append(
+                        ProviderToolResult(
+                            name=tool_request.name,
+                            call_id=tool_request.call_id,
+                            ok=True,
+                            result=tool_result,
+                        )
+                    )
+                    await self._emit(
+                        task,
+                        "action",
+                        {"text": f"MCP 도구 `{tool_request.name}` 호출을 성공적으로 완료했어요."},
+                    )
+                except Exception as exc:
+                    error_text = str(exc) or "알 수 없는 오류"
+                    next_tool_results.append(
+                        ProviderToolResult(
+                            name=tool_request.name,
+                            call_id=tool_request.call_id,
+                            ok=False,
+                            error=error_text,
+                        )
+                    )
+                    await self._emit(
+                        task,
+                        "action",
+                        {"text": f"MCP 도구 `{tool_request.name}` 호출이 실패했어요: {error_text}"},
+                    )
+
+        await self._emit(
+            task,
+            "final",
+            {"text": f"도구 호출 라운드가 {MAX_TOOL_CALL_ROUNDS}회를 넘어 작업을 종료했어요."},
+        )
 
     async def _emit(self, task: TurnTask, event_type: str, payload: dict[str, Any]) -> None:
         event = {

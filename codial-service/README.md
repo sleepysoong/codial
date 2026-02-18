@@ -82,10 +82,6 @@ curl http://localhost:8081/v1/health/ready
 | `CORE_COPILOT_AUTH_CACHE_PATH` | `.runtime/copilot-auth.json` | 선택 | Copilot 토큰 캐시 파일 경로예요. |
 | `CORE_COPILOT_LOGIN_ENDPOINT` | `/v1/auth/login` | 선택 | 브리지 로그인 엔드포인트 경로예요. |
 | `CORE_PROVIDER_BRIDGE_TIMEOUT_SECONDS` | `30` | 선택 | Provider Bridge 호출 타임아웃이에요. |
-| `CORE_OPENAI_API_KEY` | 빈 값 | 선택 | `openai-api` 활성 시 필요해요. |
-| `CORE_OPENAI_REQUEST_TIMEOUT_SECONDS` | `45` | 선택 | OpenAI API 타임아웃이에요. |
-| `CORE_CODEX_BRIDGE_BASE_URL` | 빈 값 | 선택 | `openai-codex` 활성 시 필요해요. |
-| `CORE_CODEX_BRIDGE_TOKEN` | 빈 값 | 선택 | Codex Bridge 토큰이에요. |
 | `CORE_MCP_SERVER_URL` | 빈 값 | 선택 | MCP 서버 주소예요. 비어 있으면 MCP 클라이언트를 만들지 않아요. |
 | `CORE_MCP_SERVER_TOKEN` | 빈 값 | 선택 | MCP 인증 토큰이에요. |
 | `CORE_MCP_REQUEST_TIMEOUT_SECONDS` | `15` | 선택 | MCP 호출 타임아웃이에요. |
@@ -400,8 +396,6 @@ Payload 형식:
 
 구조상 지원 대상:
 
-- `openai-api`
-- `openai-codex`
 - `github-copilot-sdk`
 
 확장 방법:
@@ -434,6 +428,13 @@ Payload 형식:
 - 호출: `tools/call`
 - 헬스: `ping`
 - 페이지네이션: `nextCursor`를 따라 자동 순회해요.
+
+턴 처리 시 MCP 동작:
+
+1. 워커가 MCP 도구 메타를 조회해 프로바이더 브리지로 전달해요.
+2. 브리지가 `tool_requests`를 반환하면 코어가 `tools/call`로 실제 MCP 도구를 실행해요.
+3. 실행 결과(`tool_results`)를 다시 브리지에 재주입해 최종 답변을 완성해요.
+4. 최대 도구 호출 라운드는 5회로 제한해요.
 
 현재 transport는 HTTP JSON-RPC 기반이에요.
 

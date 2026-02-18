@@ -2,12 +2,9 @@
 
 ## 1) Project Intent and Non-Negotiables
 
-- Build a Discord-native coding agent platform that behaves like `gemini-cli`, `claude-code`, `codex`, `opencode`, but runs through Discord channels.
+- Build a Discord-native coding agent platform that behaves like `gemini-cli`, `claude-code`, `opencode`, but runs through Discord channels.
 - Session boundary is the Discord channel. A "Start Chat" action in a main channel creates a dedicated session channel.
-- Support multiple providers:
-  - OpenAI API
-  - OpenAI Codex subscription flow (CLI bridge)
-  - GitHub Copilot SDK (`https://github.com/github/copilot-sdk`)
+- Keep provider architecture extensible, but run production with GitHub Copilot SDK only (`https://github.com/github/copilot-sdk`).
 - Support multimodal inputs: text, images, files.
 - Support MCP (Model Context Protocol) servers and tool calls.
 - Support workspace policy and behavior files like Claude Code:
@@ -180,8 +177,6 @@ Conventions:
   - cancellation propagation
 - `providers/base.py`
   - provider interface contract
-- `providers/openai_api.py`
-- `providers/codex_bridge.py`
 - `providers/copilot_sdk.py`
   - integrate `github/copilot-sdk`
 - `mcp/client.py`
@@ -435,9 +430,7 @@ Error response contract:
   - provider manager
   - policy loader (`RULES.md`, `AGENTS.md`, `skills/` summary)
   - structured progress events
-- Provider layer now includes:
-  - `openai-api` adapter (Responses API)
-  - placeholder adapters for `openai-codex` and `github-copilot-sdk`
+- Provider layer now runs with `github-copilot-sdk` only.
 - Slash command attachment parsing is wired from Discord payload to turn request.
 - Skills loader supports Claude Code skill layout (`.claude/skills/*/SKILL.md`) and frontmatter parsing.
 - MCP client follows JSON-RPC method flow (`initialize`, `tools/list`, `tools/call`).
