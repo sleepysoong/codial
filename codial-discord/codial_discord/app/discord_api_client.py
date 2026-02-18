@@ -62,6 +62,33 @@ class DiscordApiClient:
             auth_required=False,
         )
 
+    async def bulk_overwrite_application_commands(
+        self,
+        *,
+        application_id: str,
+        commands: list[dict[str, Any]],
+        guild_id: str | None,
+    ) -> list[dict[str, Any]]:
+        if guild_id:
+            path = f"/applications/{application_id}/guilds/{guild_id}/commands"
+        else:
+            path = f"/applications/{application_id}/commands"
+
+        data = await self._request_any(
+            method="PUT",
+            path=path,
+            json=commands,
+            auth_required=True,
+        )
+        if not isinstance(data, list):
+            raise UpstreamTransientError("디스코드 커맨드 동기화 응답 형식이 올바르지 않아요.")
+
+        commands_response: list[dict[str, Any]] = []
+        for item in data:
+            if isinstance(item, dict):
+                commands_response.append(item)
+        return commands_response
+
     async def _request(
         self,
         *,
@@ -70,6 +97,24 @@ class DiscordApiClient:
         json: dict[str, Any],
         auth_required: bool,
     ) -> dict[str, Any]:
+        data = await self._request_any(
+            method=method,
+            path=path,
+            json=json,
+            auth_required=auth_required,
+        )
+        if not isinstance(data, dict):
+            raise UpstreamTransientError("디스코드 API 응답 형식이 올바르지 않아요.")
+        return data
+
+    async def _request_any(
+        self,
+        *,
+        method: str,
+        path: str,
+        json: dict[str, Any] | list[dict[str, Any]],
+        auth_required: bool,
+    ) -> dict[str, Any] | list[Any]:
         headers = {"Content-Type": "application/json"}
         if auth_required:
             if not self._bot_token:
@@ -112,7 +157,7 @@ class DiscordApiClient:
 
             response.raise_for_status()
             data = response.json()
-            if not isinstance(data, dict):
+            if not isinstance(data, dict | list):
                 raise UpstreamTransientError("디스코드 API 응답 형식이 올바르지 않아요.")
             return data
 

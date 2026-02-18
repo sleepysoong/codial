@@ -29,6 +29,7 @@ dev = [
 [project.scripts]
 codial-discord = "codial_discord.cli:main"
 codial-discord-dev = "codial_discord.cli:main_dev"
+codial-discord-sync-commands = "codial_discord.sync_commands:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

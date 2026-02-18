@@ -17,6 +17,8 @@ class Settings(BaseSettings):
 
     discord_public_key: str = ""
     discord_bot_token: str = ""
+    discord_application_id: str = ""
+    discord_command_guild_id: str | None = None
     core_api_base_url: str = "http://localhost:8081"
     core_api_token: str = "dev-core-token"
     internal_event_token: str = "dev-internal-token"

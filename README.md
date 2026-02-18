@@ -52,6 +52,7 @@ python -m pip install -e "./codial-discord[dev]"
   - 기본값으로 `CORE_ENABLED_PROVIDER_NAMES=github-copilot-sdk`가 설정되어 있어요.
 - `codial-discord/.env`
   - `DGW_DISCORD_PUBLIC_KEY`, `DGW_DISCORD_BOT_TOKEN`을 반드시 채워요.
+  - `DGW_DISCORD_APPLICATION_ID`를 함께 채우면 커맨드 동기화를 자동화할 수 있어요.
   - `DGW_CORE_API_BASE_URL`은 기본값으로 `http://localhost:8081`을 사용해요.
 
 ### 3) 서비스 실행
@@ -112,6 +113,15 @@ codial-discord-dev
 3. 필요한 Slash Command를 등록해요.
 4. `DGW_DISCORD_PUBLIC_KEY`, `DGW_DISCORD_BOT_TOKEN`을 `.env`에 반영해요.
 5. 봇에 채널 생성/메시지 전송 권한을 부여해요.
+
+커맨드 등록 자동화 명령:
+
+```bash
+cd codial-discord
+codial-discord-sync-commands
+```
+
+테스트 길드에 먼저 반영하려면 `DGW_DISCORD_COMMAND_GUILD_ID`를 설정해요.
 
 ## 품질 검사
 
