@@ -17,6 +17,7 @@ from services.agent_core_api.app.models import (
     SetProviderRequest,
     SubmitTurnRequest,
 )
+from services.agent_core_api.app.policy_loader import PolicyLoader, extract_agent_defaults
 from services.agent_core_api.app.settings import settings
 from services.agent_core_api.app.store import store
 from services.agent_core_api.app.turn_worker import TurnWorkerPool
@@ -34,7 +35,17 @@ def _check_auth(authorization: str) -> None:
 async def create_session(req: CreateSessionRequest, authorization: str = Header(default="")) -> CreateSessionResponse:
     _check_auth(authorization)
 
-    record = await store.create_session(req.guild_id, req.requester_id, req.idempotency_key)
+    policy_snapshot = PolicyLoader(workspace_root=settings.workspace_root).load()
+    agent_defaults = extract_agent_defaults(policy_snapshot.agents_text)
+    record = await store.create_session(
+        req.guild_id,
+        req.requester_id,
+        req.idempotency_key,
+        default_provider=agent_defaults.provider or "openai-api",
+        default_model=agent_defaults.model or "gpt-5-mini",
+        default_mcp_enabled=agent_defaults.mcp_enabled if agent_defaults.mcp_enabled is not None else True,
+        default_mcp_profile_name=agent_defaults.mcp_profile_name or "default",
+    )
     logger.info("session_created", session_id=record.session_id, guild_id=req.guild_id)
     return CreateSessionResponse(session_id=record.session_id, status=record.status)
 

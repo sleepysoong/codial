@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from libs.common.errors import ValidationError
-from services.agent_core_api.app.policy_loader import PolicyLoader
+from services.agent_core_api.app.policy_loader import PolicyLoader, extract_agent_defaults
 from services.agent_core_api.app.providers.manager import ProviderManager
 from services.agent_core_api.app.providers.placeholder_adapter import PlaceholderProviderAdapter
 
@@ -28,3 +28,17 @@ def test_provider_manager_rejects_unknown_provider() -> None:
     manager = ProviderManager(adapters=[PlaceholderProviderAdapter(name="openai-codex", description="테스트")])
     with pytest.raises(ValidationError):
         manager.resolve("unknown-provider")
+
+
+def test_extract_agent_defaults_reads_supported_keys() -> None:
+    agents_text = """
+default_provider: github-copilot-sdk
+default_model: gpt-5
+default_mcp_enabled: false
+default_mcp_profile: strict
+"""
+    defaults = extract_agent_defaults(agents_text)
+    assert defaults.provider == "github-copilot-sdk"
+    assert defaults.model == "gpt-5"
+    assert defaults.mcp_enabled is False
+    assert defaults.mcp_profile_name == "strict"

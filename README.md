@@ -57,6 +57,7 @@ uvicorn services.discord_gateway.app.main:app --host 0.0.0.0 --port 8080 --reloa
 - `/ask` 명령은 `attachment` 옵션으로 파일 1개를 함께 전달할 수 있어요.
 - `openai-codex`와 `github-copilot-sdk`는 HTTP 브리지 방식으로 연결해요.
 - 첨부파일은 기본적으로 메타데이터만 처리하고, 옵션으로 다운로드 저장을 켤 수 있어요.
+- `AGENTS.md`의 `default_provider`, `default_model`, `default_mcp_*` 키로 세션 기본값을 제어해요.
 
 ## 품질 검사 명령
 

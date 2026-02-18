@@ -1,5 +1,10 @@
 # Agent Profiles
 
+default_provider: openai-api
+default_model: gpt-5-mini
+default_mcp_enabled: true
+default_mcp_profile: default
+
 ## planner
 - Goal: produce a clear implementation plan before code changes.
 - Tool policy: read-only by default, no destructive commands.

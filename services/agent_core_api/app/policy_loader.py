@@ -5,6 +5,14 @@ from pathlib import Path
 
 
 @dataclass(slots=True)
+class AgentDefaults:
+    provider: str | None
+    model: str | None
+    mcp_enabled: bool | None
+    mcp_profile_name: str | None
+
+
+@dataclass(slots=True)
 class PolicySnapshot:
     rules_summary: str
     agents_summary: str
@@ -57,3 +65,36 @@ class PolicyLoader:
         if not skill_files:
             return "스킬 파일이 없어요."
         return ", ".join(skill_files)
+
+
+def extract_agent_defaults(agents_text: str) -> AgentDefaults:
+    defaults = AgentDefaults(
+        provider=None,
+        model=None,
+        mcp_enabled=None,
+        mcp_profile_name=None,
+    )
+
+    for raw_line in agents_text.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or ":" not in line:
+            continue
+
+        key, value = line.split(":", maxsplit=1)
+        normalized_key = key.strip().lower()
+        normalized_value = value.strip()
+
+        if normalized_key == "default_provider" and normalized_value:
+            defaults.provider = normalized_value
+        elif normalized_key == "default_model" and normalized_value:
+            defaults.model = normalized_value
+        elif normalized_key == "default_mcp_enabled" and normalized_value:
+            lowered = normalized_value.lower()
+            if lowered in {"true", "yes", "1"}:
+                defaults.mcp_enabled = True
+            elif lowered in {"false", "no", "0"}:
+                defaults.mcp_enabled = False
+        elif normalized_key == "default_mcp_profile" and normalized_value:
+            defaults.mcp_profile_name = normalized_value
+
+    return defaults

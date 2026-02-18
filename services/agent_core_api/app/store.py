@@ -24,7 +24,17 @@ class InMemorySessionStore:
         self._sessions: dict[str, SessionRecord] = {}
         self._by_idempotency: dict[str, str] = {}
 
-    async def create_session(self, guild_id: str, requester_id: str, idempotency_key: str) -> SessionRecord:
+    async def create_session(
+        self,
+        guild_id: str,
+        requester_id: str,
+        idempotency_key: str,
+        *,
+        default_provider: str,
+        default_model: str,
+        default_mcp_enabled: bool,
+        default_mcp_profile_name: str | None,
+    ) -> SessionRecord:
         async with self._lock:
             existing_session_id = self._by_idempotency.get(idempotency_key)
             if existing_session_id is not None:
@@ -37,10 +47,10 @@ class InMemorySessionStore:
                 requester_id=requester_id,
                 channel_id=None,
                 status="active",
-                provider="openai-api",
-                model="gpt-5-mini",
-                mcp_enabled=True,
-                mcp_profile_name="default",
+                provider=default_provider,
+                model=default_model,
+                mcp_enabled=default_mcp_enabled,
+                mcp_profile_name=default_mcp_profile_name,
             )
             self._sessions[session_id] = record
             self._by_idempotency[idempotency_key] = session_id

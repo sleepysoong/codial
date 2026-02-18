@@ -2,21 +2,33 @@ from __future__ import annotations
 
 import pytest
 
-from services.agent_core_api.app.store import InMemorySessionStore
+from services.agent_core_api.app.store import InMemorySessionStore, SessionRecord
+
+
+async def _create_session(local_store: InMemorySessionStore, key: str) -> SessionRecord:
+    return await local_store.create_session(
+        "g1",
+        "u1",
+        key,
+        default_provider="openai-api",
+        default_model="gpt-5-mini",
+        default_mcp_enabled=True,
+        default_mcp_profile_name="default",
+    )
 
 
 @pytest.mark.asyncio
 async def test_create_session_is_idempotent() -> None:
     local_store = InMemorySessionStore()
-    first = await local_store.create_session("g1", "u1", "k1")
-    second = await local_store.create_session("g1", "u1", "k1")
+    first = await _create_session(local_store, "k1")
+    second = await _create_session(local_store, "k1")
     assert first.session_id == second.session_id
 
 
 @pytest.mark.asyncio
 async def test_bind_channel_updates_record() -> None:
     local_store = InMemorySessionStore()
-    record = await local_store.create_session("g1", "u1", "k2")
+    record = await _create_session(local_store, "k2")
     updated = await local_store.bind_channel(record.session_id, "c-1")
     assert updated.channel_id == "c-1"
 
@@ -24,7 +36,7 @@ async def test_bind_channel_updates_record() -> None:
 @pytest.mark.asyncio
 async def test_end_session_updates_status() -> None:
     local_store = InMemorySessionStore()
-    record = await local_store.create_session("g1", "u1", "k3")
+    record = await _create_session(local_store, "k3")
     ended = await local_store.end_session(record.session_id)
     assert ended.status == "ended"
 
@@ -32,7 +44,7 @@ async def test_end_session_updates_status() -> None:
 @pytest.mark.asyncio
 async def test_set_provider_model_and_mcp() -> None:
     local_store = InMemorySessionStore()
-    record = await local_store.create_session("g1", "u1", "k4")
+    record = await _create_session(local_store, "k4")
 
     provider_updated = await local_store.set_provider(record.session_id, "openai-codex")
     assert provider_updated.provider == "openai-codex"
