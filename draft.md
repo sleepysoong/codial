@@ -439,6 +439,8 @@ Error response contract:
   - `openai-api` adapter (Responses API)
   - placeholder adapters for `openai-codex` and `github-copilot-sdk`
 - Slash command attachment parsing is wired from Discord payload to turn request.
+- Skills loader supports Claude Code skill layout (`.claude/skills/*/SKILL.md`) and frontmatter parsing.
+- MCP client follows JSON-RPC method flow (`initialize`, `tools/list`, `tools/call`).
 - Quality gates are active and passing:
   - Ruff lint
   - mypy strict

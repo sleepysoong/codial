@@ -9,6 +9,7 @@ from typing import Any
 from libs.common.logging import get_logger
 from services.agent_core_api.app.attachment_ingestor import AttachmentIngestor
 from services.agent_core_api.app.event_sink import GatewayEventSink
+from services.agent_core_api.app.mcp_client import McpClient
 from services.agent_core_api.app.models import TurnAttachment
 from services.agent_core_api.app.policy_engine import (
     enforce_provider_and_model,
@@ -39,12 +40,14 @@ class TurnWorkerPool:
         self,
         sink: GatewayEventSink,
         attachment_ingestor: AttachmentIngestor,
+        mcp_client: McpClient | None,
         provider_manager: ProviderManager,
         policy_loader: PolicyLoader,
         worker_count: int,
     ) -> None:
         self._sink = sink
         self._attachment_ingestor = attachment_ingestor
+        self._mcp_client = mcp_client
         self._provider_manager = provider_manager
         self._policy_loader = policy_loader
         self._worker_count = worker_count
@@ -143,6 +146,23 @@ class TurnWorkerPool:
             attachments=task.attachments,
         )
         await self._emit(task, "action", {"text": ingest_result.summary})
+
+        if task.mcp_enabled and self._mcp_client is not None:
+            initialize_result = await self._mcp_client.initialize(
+                client_name="codial-core",
+                client_version="0.1.0",
+            )
+            tools = await self._mcp_client.list_tools()
+            server_name = initialize_result.server_name or "알 수 없는 서버"
+            await self._emit(
+                task,
+                "action",
+                {
+                    "text": (
+                        f"MCP 서버 `{server_name}`를 연결했고 도구 {len(tools)}개를 확인했어요."
+                    )
+                },
+            )
 
         enforce_provider_and_model(
             provider=task.provider,

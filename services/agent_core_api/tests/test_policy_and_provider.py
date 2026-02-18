@@ -21,7 +21,8 @@ def test_policy_loader_reads_workspace_files(tmp_path: Path) -> None:
     snapshot = PolicyLoader(workspace_root=str(tmp_path)).load()
     assert snapshot.rules_summary == "# Rules"
     assert snapshot.agents_summary == "# Agents"
-    assert snapshot.skills_summary == "a.yaml, b.yaml"
+    assert "a.yaml" in snapshot.skills_summary
+    assert "b.yaml" in snapshot.skills_summary
 
 
 def test_provider_manager_rejects_unknown_provider() -> None:

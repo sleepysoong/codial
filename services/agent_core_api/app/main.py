@@ -9,6 +9,7 @@ from libs.common.http_handlers import register_exception_handlers
 from libs.common.logging import configure_logging
 from services.agent_core_api.app.attachment_ingestor import AttachmentIngestor
 from services.agent_core_api.app.event_sink import GatewayEventSink
+from services.agent_core_api.app.mcp_client import McpClient
 from services.agent_core_api.app.policy_loader import PolicyLoader
 from services.agent_core_api.app.providers.http_bridge_adapter import HttpBridgeProviderAdapter
 from services.agent_core_api.app.providers.manager import ProviderManager
@@ -56,9 +57,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         storage_dir=settings.attachment_storage_dir,
         timeout_seconds=settings.request_timeout_seconds,
     )
+    mcp_client = None
+    if settings.mcp_server_url:
+        mcp_client = McpClient(
+            server_url=settings.mcp_server_url,
+            token=settings.mcp_server_token,
+            timeout_seconds=settings.mcp_request_timeout_seconds,
+        )
     worker_pool = TurnWorkerPool(
         sink=sink,
         attachment_ingestor=attachment_ingestor,
+        mcp_client=mcp_client,
         provider_manager=provider_manager,
         policy_loader=policy_loader,
         worker_count=settings.turn_worker_count,

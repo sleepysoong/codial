@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     copilot_bridge_base_url: str = ""
     copilot_bridge_token: str = ""
     provider_bridge_timeout_seconds: float = 30.0
+    mcp_server_url: str = ""
+    mcp_server_token: str = ""
+    mcp_request_timeout_seconds: float = 15.0
     attachment_download_enabled: bool = False
     attachment_download_max_bytes: int = 10_000_000
     attachment_storage_dir: str = ".runtime/attachments"

@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from services.agent_core_api.app.skills_spec import discover_claude_skills
+
 
 @dataclass(slots=True)
 class AgentDefaults:
@@ -32,9 +34,8 @@ class PolicyLoader:
 
         rules_summary = self._read_headline(rules_path)
         agents_summary = self._read_headline(agents_path)
-        skills_dir = self._workspace_root / "skills"
-        available_skills = self._read_skills(skills_dir)
-        skills_summary = ", ".join(available_skills) if available_skills else "스킬 파일이 없어요."
+        available_skills = self._read_skills()
+        skills_summary = ", ".join(available_skills) if available_skills else "스킬이 없어요."
 
         rules_text = self._read_full_text(rules_path)
         agents_text = self._read_full_text(agents_path)
@@ -62,10 +63,18 @@ class PolicyLoader:
             return ""
         return path.read_text(encoding="utf-8")
 
-    def _read_skills(self, skills_dir: Path) -> list[str]:
-        if not skills_dir.exists() or not skills_dir.is_dir():
-            return []
-        return sorted([path.name for path in skills_dir.glob("*.yaml")])
+    def _read_skills(self) -> list[str]:
+        claude_skill_paths = [
+            self._workspace_root / ".claude" / "skills",
+            Path.home() / ".claude" / "skills",
+        ]
+        claude_skills = discover_claude_skills(claude_skill_paths)
+        claude_names = {skill.name for skill in claude_skills}
+
+        legacy_skills = sorted(
+            [path.name for path in (self._workspace_root / "skills").glob("*.yaml")]
+        )
+        return sorted(claude_names.union(legacy_skills))
 
 
 def extract_agent_defaults(agents_text: str) -> AgentDefaults:

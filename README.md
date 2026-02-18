@@ -59,6 +59,18 @@ uvicorn services.discord_gateway.app.main:app --host 0.0.0.0 --port 8080 --reloa
 - 첨부파일은 기본적으로 메타데이터만 처리하고, 옵션으로 다운로드 저장을 켤 수 있어요.
 - `AGENTS.md`의 `default_provider`, `default_model`, `default_mcp_*` 키로 세션 기본값을 제어해요.
 
+## 표준 호환성
+
+- Skills는 Claude Code 문서 형식(`.claude/skills/<name>/SKILL.md` + YAML 프론트매터)을 지원해요.
+- MCP는 JSON-RPC 기반 `initialize`, `tools/list`, `tools/call` 메서드로 서버와 통신해요.
+
+MCP 서버 예시 환경 변수:
+
+```bash
+set CORE_MCP_SERVER_URL=http://localhost:8090/mcp
+set CORE_MCP_SERVER_TOKEN=your_mcp_token
+```
+
 ## 품질 검사 명령
 
 아래 명령으로 린트, 타입 검사, 테스트를 실행해요.
