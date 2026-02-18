@@ -1,0 +1,27 @@
+name: session_bootstrap
+description: Create and initialize a Discord coding session safely.
+inputs_schema:
+  type: object
+  properties:
+    guild_id:
+      type: string
+    requester_id:
+      type: string
+  required: [guild_id, requester_id]
+steps:
+  - Validate interaction payload and signature.
+  - Create session record with idempotency key.
+  - Create channel with permission overwrites.
+  - Post initialization controls and usage guidance.
+required_tools:
+  - discord_api
+  - session_store
+output_schema:
+  type: object
+  properties:
+    session_id:
+      type: string
+    channel_id:
+      type: string
+  required: [session_id, channel_id]
+safety_level: elevated
