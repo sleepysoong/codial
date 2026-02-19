@@ -31,6 +31,10 @@ class McpClient:
         self._request_id = 0
         self._protocol_version: str | None = None
         self._session_id: str | None = None
+        self._client = httpx.AsyncClient(timeout=self._timeout_seconds)
+
+    async def aclose(self) -> None:
+        await self._client.aclose()
 
     async def initialize(self, *, client_name: str, client_version: str) -> McpInitializeResult:
         params = {
@@ -242,8 +246,7 @@ class McpClient:
         headers = self._build_headers(include_accept_header=False)
 
         try:
-            async with httpx.AsyncClient(timeout=self._timeout_seconds) as client:
-                response = await client.post(self._server_url, json=payload, headers=headers)
+            response = await self._client.post(self._server_url, json=payload, headers=headers)
         except httpx.TimeoutException as exc:
             raise UpstreamTransientError("MCP 알림 전송이 시간 초과됐어요.") from exc
         except httpx.HTTPError as exc:
@@ -302,8 +305,7 @@ class McpClient:
             headers.pop("MCP-Session-Id", None)
 
         try:
-            async with httpx.AsyncClient(timeout=self._timeout_seconds) as client:
-                response = await client.post(self._server_url, json=payload, headers=headers)
+            response = await self._client.post(self._server_url, json=payload, headers=headers)
         except httpx.TimeoutException as exc:
             raise UpstreamTransientError("MCP 요청이 시간 초과됐어요.") from exc
         except httpx.HTTPError as exc:

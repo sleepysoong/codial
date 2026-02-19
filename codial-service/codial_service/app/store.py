@@ -98,6 +98,3 @@ class InMemorySessionStore:
             record = self._sessions[session_id]
             record.subagent_name = subagent_name
             return record
-
-
-store = InMemorySessionStore()

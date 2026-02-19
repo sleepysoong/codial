@@ -2,12 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 from codial_service.app.policy_loader import PolicyLoader, extract_agent_defaults
-from codial_service.app.providers.manager import ProviderManager
-from codial_service.app.providers.placeholder_adapter import PlaceholderProviderAdapter
-
-from libs.common.errors import ValidationError
 
 
 def test_policy_loader_reads_workspace_files(tmp_path: Path) -> None:
@@ -25,12 +20,6 @@ def test_policy_loader_reads_workspace_files(tmp_path: Path) -> None:
     assert snapshot.agents_summary == "# Agents"
     assert "a.yaml" in snapshot.skills_summary
     assert "b.yaml" in snapshot.skills_summary
-
-
-def test_provider_manager_rejects_unknown_provider() -> None:
-    manager = ProviderManager(adapters=[PlaceholderProviderAdapter(name="github-copilot-sdk", description="테스트")])
-    with pytest.raises(ValidationError):
-        manager.resolve("unknown-provider")
 
 
 def test_extract_agent_defaults_reads_supported_keys() -> None:

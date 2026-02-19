@@ -28,6 +28,10 @@ class AttachmentIngestor:
         self._max_bytes = max_bytes
         self._storage_dir = Path(storage_dir)
         self._timeout_seconds = timeout_seconds
+        self._client = httpx.AsyncClient(timeout=self._timeout_seconds)
+
+    async def aclose(self) -> None:
+        await self._client.aclose()
 
     async def ingest(self, session_id: str, turn_id: str, attachments: list[TurnAttachment]) -> AttachmentIngestResult:
         if not attachments:
@@ -66,8 +70,7 @@ class AttachmentIngestor:
         target_path = target_dir / safe_filename
 
         try:
-            async with httpx.AsyncClient(timeout=self._timeout_seconds) as client:
-                response = await client.get(attachment.url)
+            response = await self._client.get(attachment.url)
         except httpx.HTTPError as exc:
             raise UpstreamTransientError("첨부파일 다운로드 중 네트워크 오류가 발생했어요.") from exc
 

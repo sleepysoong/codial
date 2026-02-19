@@ -55,7 +55,7 @@ class HttpBridgeProviderAdapter(ProviderAdapter):
                     "input_schema": tool.input_schema,
                     "output_schema": tool.output_schema,
                 }
-                for tool in request.mcp_tools
+                for tool in request.tool_specs
             ],
             "tool_results": [
                 {

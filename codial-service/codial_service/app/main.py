@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from codial_service.app.attachment_ingestor import AttachmentIngestor
+from codial_service.app.codial_rules import CodialRuleStore
 from codial_service.app.event_sink import GatewayEventSink
 from codial_service.app.mcp_client import McpClient
 from codial_service.app.policy_loader import PolicyLoader
@@ -17,9 +18,9 @@ from codial_service.app.providers.copilot_auth import (
     CopilotAuthBootstrapper,
     CopilotAuthSettings,
 )
-from codial_service.app.providers.manager import ProviderManager
 from codial_service.app.routes import router
 from codial_service.app.settings import settings
+from codial_service.app.store import InMemorySessionStore
 from codial_service.app.tools.defaults import build_default_tool_registry
 from codial_service.app.turn_worker import TurnWorkerPool
 from libs.common.http_handlers import register_exception_handlers
@@ -55,14 +56,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         )
         copilot_token_override = await bootstrapper.ensure_token()
 
-    provider_manager = ProviderManager(
-        adapters=build_provider_adapters(
+    provider_adapters = {
+        adapter.name: adapter
+        for adapter in build_provider_adapters(
             settings,
             enabled_providers=enabled_providers,
             copilot_token_override=copilot_token_override,
         )
-    )
-    policy_loader = PolicyLoader(workspace_root=settings.workspace_root)
+    }
     attachment_ingestor = AttachmentIngestor(
         download_enabled=settings.attachment_download_enabled,
         max_bytes=settings.attachment_download_max_bytes,
@@ -77,22 +78,32 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             timeout_seconds=settings.mcp_request_timeout_seconds,
         )
     tool_registry = build_default_tool_registry(workspace_root=settings.workspace_root)
+    store = InMemorySessionStore()
+    policy_loader = PolicyLoader(workspace_root=settings.workspace_root)
+    codial_rule_store = CodialRuleStore(workspace_root=settings.workspace_root)
     worker_pool = TurnWorkerPool(
         sink=sink,
         attachment_ingestor=attachment_ingestor,
         mcp_client=mcp_client,
-        provider_manager=provider_manager,
+        provider_adapters=provider_adapters,
         policy_loader=policy_loader,
         tool_registry=tool_registry,
         worker_count=settings.turn_worker_count,
         workspace_root=settings.workspace_root,
     )
     await worker_pool.start()
+    app.state.store = store
+    app.state.policy_loader = policy_loader
+    app.state.codial_rule_store = codial_rule_store
     app.state.turn_worker_pool = worker_pool
     try:
         yield
     finally:
         await worker_pool.stop()
+        await sink.aclose()
+        await attachment_ingestor.aclose()
+        if mcp_client is not None:
+            await mcp_client.aclose()
 
 
 app = FastAPI(title=settings.service_name, lifespan=lifespan)

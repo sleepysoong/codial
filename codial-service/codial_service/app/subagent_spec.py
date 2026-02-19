@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import yaml
+from codial_service.app.utils import normalize_str_list, split_frontmatter
 
 
 @dataclass(slots=True)
@@ -35,9 +35,26 @@ def discover_subagents(base_paths: list[Path]) -> list[SubagentSpec]:
     return list(found.values())
 
 
+def default_subagent_search_paths(workspace_root: str | Path) -> list[Path]:
+    """서브에이전트 탐색에 사용할 기본 경로 목록을 반환해요.
+
+    글로벌 경로(``~/.claude/agents``)를 먼저, 프로젝트 경로를 나중에 넣어요.
+    프로젝트 경로가 같은 이름의 에이전트를 덮어써요.
+
+    Args:
+        workspace_root: 프로젝트 루트 경로예요.
+
+    Returns:
+        ``[global_agents, project_agents]`` 형식의 경로 목록이에요.
+    """
+    global_agents = Path.home() / ".claude" / "agents"
+    project_agents = Path(workspace_root) / ".claude" / "agents"
+    return [global_agents, project_agents]
+
+
 def parse_subagent_file(file_path: Path) -> SubagentSpec:
     content = file_path.read_text(encoding="utf-8")
-    frontmatter, prompt = _split_frontmatter(content)
+    frontmatter, prompt = split_frontmatter(content)
 
     name_value = frontmatter.get("name")
     description_value = frontmatter.get("description")
@@ -53,52 +70,17 @@ def parse_subagent_file(file_path: Path) -> SubagentSpec:
         name=name,
         description=description,
         prompt=prompt,
-        tools=_normalize_str_list(frontmatter.get("tools")),
-        disallowed_tools=_normalize_str_list(frontmatter.get("disallowedTools")),
+        tools=normalize_str_list(frontmatter.get("tools")),
+        disallowed_tools=normalize_str_list(frontmatter.get("disallowedTools")),
         model=_normalize_model(frontmatter.get("model")),
         permission_mode=_normalize_permission(frontmatter.get("permissionMode")),
         max_turns=_normalize_int(frontmatter.get("maxTurns")),
-        skills=_normalize_str_list(frontmatter.get("skills")),
+        skills=normalize_str_list(frontmatter.get("skills")),
         mcp_servers=_normalize_mcp_servers(frontmatter.get("mcpServers")),
         hooks=_normalize_hooks(frontmatter.get("hooks")),
         memory=_normalize_optional_str(frontmatter.get("memory")),
         source_path=str(file_path),
     )
-
-
-def _split_frontmatter(content: str) -> tuple[dict[str, Any], str]:
-    stripped = content.lstrip()
-    if not stripped.startswith("---\n"):
-        return {}, content.strip()
-
-    lines = stripped.splitlines()
-    end_index: int | None = None
-    for index in range(1, len(lines)):
-        if lines[index].strip() == "---":
-            end_index = index
-            break
-
-    if end_index is None:
-        return {}, content.strip()
-
-    frontmatter_text = "\n".join(lines[1:end_index])
-    prompt = "\n".join(lines[end_index + 1 :]).strip()
-    loaded = yaml.safe_load(frontmatter_text)
-    if isinstance(loaded, dict):
-        return loaded, prompt
-    return {}, prompt
-
-
-def _normalize_str_list(value: object) -> list[str]:
-    if isinstance(value, str):
-        return [item.strip() for item in value.split(",") if item.strip()]
-    if isinstance(value, list):
-        result: list[str] = []
-        for item in value:
-            if isinstance(item, str) and item.strip():
-                result.append(item.strip())
-        return result
-    return []
 
 
 def _normalize_model(value: object) -> str:

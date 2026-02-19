@@ -17,12 +17,12 @@ from codial_service.app.policy_engine import (
 )
 from codial_service.app.policy_loader import PolicyLoader
 from codial_service.app.providers.base import (
+    ProviderAdapter,
     ProviderRequest,
     ProviderToolResult,
     ProviderToolSpec,
 )
-from codial_service.app.providers.manager import ProviderManager
-from codial_service.app.subagent_spec import SubagentSpec, discover_subagents
+from codial_service.app.subagent_spec import SubagentSpec, default_subagent_search_paths, discover_subagents
 from codial_service.app.tools.registry import ToolRegistry
 from libs.common.errors import UpstreamTransientError
 from libs.common.logging import get_logger
@@ -34,6 +34,7 @@ logger = get_logger("codial_service.turn_worker")
 @dataclass(slots=True)
 class TurnTask:
     turn_id: str
+    trace_id: str
     session_id: str
     user_id: str
     text: str
@@ -51,7 +52,7 @@ class TurnWorkerPool:
         sink: GatewayEventSink,
         attachment_ingestor: AttachmentIngestor,
         mcp_client: McpClient | None,
-        provider_manager: ProviderManager,
+        provider_adapters: dict[str, ProviderAdapter],
         policy_loader: PolicyLoader,
         tool_registry: ToolRegistry,
         worker_count: int,
@@ -60,7 +61,7 @@ class TurnWorkerPool:
         self._sink = sink
         self._attachment_ingestor = attachment_ingestor
         self._mcp_client = mcp_client
-        self._provider_manager = provider_manager
+        self._provider_adapters = provider_adapters
         self._policy_loader = policy_loader
         self._tool_registry = tool_registry
         self._worker_count = worker_count
@@ -95,10 +96,12 @@ class TurnWorkerPool:
         mcp_enabled: bool,
         mcp_profile_name: str | None,
         subagent_name: str | None,
+        trace_id: str | None = None,
     ) -> str:
         turn_id = str(uuid.uuid4())
         task = TurnTask(
             turn_id=turn_id,
+            trace_id=trace_id or str(uuid.uuid4()),
             session_id=session_id,
             user_id=user_id,
             text=text,
@@ -113,9 +116,7 @@ class TurnWorkerPool:
         return turn_id
 
     def _load_subagent_spec(self, subagent_name: str) -> SubagentSpec | None:
-        global_agents = Path.home() / ".claude" / "agents"
-        project_agents = self._workspace_root / ".claude" / "agents"
-        specs = discover_subagents([global_agents, project_agents])
+        specs = discover_subagents(default_subagent_search_paths(self._workspace_root))
         for spec in specs:
             if spec.name == subagent_name:
                 return spec
@@ -130,6 +131,7 @@ class TurnWorkerPool:
                 logger.exception(
                     "turn_processing_failed",
                     worker_index=worker_index,
+                    trace_id=task.trace_id,
                     turn_id=task.turn_id,
                     error=str(exc),
                 )
@@ -312,7 +314,12 @@ class TurnWorkerPool:
             available_skills=set(policy_snapshot.available_skills),
         )
 
-        provider_adapter = self._provider_manager.resolve(task.provider)
+        provider_adapter = self._provider_adapters.get(task.provider)
+        if provider_adapter is None:
+            supported = ", ".join(sorted(self._provider_adapters.keys()))
+            raise ValueError(
+                f"지원하지 않는 프로바이더예요: `{task.provider}`. 지원 목록: {supported}"
+            )
         next_tool_results: list[ProviderToolResult] = []
         round_index = 0
 
@@ -330,7 +337,7 @@ class TurnWorkerPool:
                 agents_summary=policy_snapshot.agents_summary,
                 skills_summary=policy_snapshot.skills_summary,
                 claude_memory_summary=effective_claude_memory_summary,
-                mcp_tools=all_tool_specs,
+                tool_specs=all_tool_specs,
                 tool_results=next_tool_results,
                 tool_call_round=round_index,
             )
@@ -441,6 +448,7 @@ class TurnWorkerPool:
         event = {
             "session_id": task.session_id,
             "turn_id": task.turn_id,
+            "trace_id": task.trace_id,
             "type": event_type,
             "payload": payload,
         }

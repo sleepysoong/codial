@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import threading
+import asyncio
 from pathlib import Path
 
 
@@ -8,31 +8,28 @@ class CodialRuleStore:
     def __init__(self, workspace_root: str) -> None:
         self._workspace_root = Path(workspace_root)
         self._path = self._workspace_root / "CODIAL.md"
-        self._lock = threading.Lock()
+        self._lock = asyncio.Lock()
 
     def list_rules(self) -> list[str]:
-        with self._lock:
-            return self._read_rules()
+        return self._read_rules()
 
     def add_rule(self, rule: str) -> list[str]:
         normalized_rule = rule.strip()
         if not normalized_rule:
             return self.list_rules()
 
-        with self._lock:
-            rules = self._read_rules()
-            rules.append(normalized_rule)
-            self._write_rules(rules)
-            return rules
+        rules = self._read_rules()
+        rules.append(normalized_rule)
+        self._write_rules(rules)
+        return rules
 
     def remove_rule(self, index: int) -> list[str]:
-        with self._lock:
-            rules = self._read_rules()
-            if not 1 <= index <= len(rules):
-                raise ValueError("index_out_of_range")
-            rules.pop(index - 1)
-            self._write_rules(rules)
-            return rules
+        rules = self._read_rules()
+        if not 1 <= index <= len(rules):
+            raise ValueError("index_out_of_range")
+        rules.pop(index - 1)
+        self._write_rules(rules)
+        return rules
 
     def _read_rules(self) -> list[str]:
         if not self._path.exists():

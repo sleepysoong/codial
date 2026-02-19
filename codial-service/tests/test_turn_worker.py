@@ -15,7 +15,6 @@ from codial_service.app.providers.base import (
     ProviderResponse,
     ProviderToolRequest,
 )
-from codial_service.app.providers.manager import ProviderManager
 from codial_service.app.tools.defaults import build_default_tool_registry
 from codial_service.app.turn_worker import TurnWorkerPool
 
@@ -148,14 +147,14 @@ async def test_turn_worker_executes_mcp_tool_calls_and_reinjects_results(tmp_pat
     ingestor = _FakeAttachmentIngestor()
     mcp_client = _FakeMcpClient()
     adapter = _ToolCallingProviderAdapter()
-    manager = ProviderManager(adapters=[adapter])
+    provider_adapters = {adapter.name: adapter}
     policy_loader = _FakePolicyLoader()
 
     worker_pool = TurnWorkerPool(
         sink=cast(Any, sink),
         attachment_ingestor=cast(Any, ingestor),
         mcp_client=cast(Any, mcp_client),
-        provider_manager=manager,
+        provider_adapters=cast(Any, provider_adapters),
         policy_loader=cast(Any, policy_loader),
         tool_registry=build_default_tool_registry(workspace_root=str(tmp_path)),
         worker_count=1,
@@ -181,7 +180,7 @@ async def test_turn_worker_executes_mcp_tool_calls_and_reinjects_results(tmp_pat
 
     assert len(adapter.requests) == 2
     # 내장 도구 + MCP 도구가 함께 전달되었는지 확인
-    all_tool_names = {t.name for t in adapter.requests[0].mcp_tools}
+    all_tool_names = {t.name for t in adapter.requests[0].tool_specs}
     assert "read_file" in all_tool_names  # MCP 도구
     assert "shell" in all_tool_names      # 내장 도구
     assert "file_read" in all_tool_names  # 내장 도구

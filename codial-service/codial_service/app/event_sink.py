@@ -13,18 +13,21 @@ class GatewayEventSink:
         self._base_url = base_url.rstrip("/")
         self._token = token
         self._timeout = timeout_seconds
+        self._client = httpx.AsyncClient(timeout=self._timeout)
+
+    async def aclose(self) -> None:
+        await self._client.aclose()
 
     async def publish(self, event: dict[str, Any]) -> None:
         max_attempts = 4
         headers = {"x-internal-token": self._token}
         for attempt in range(max_attempts):
             try:
-                async with httpx.AsyncClient(timeout=self._timeout) as client:
-                    response = await client.post(
-                        f"{self._base_url}/internal/stream-events",
-                        json=event,
-                        headers=headers,
-                    )
+                response = await self._client.post(
+                    f"{self._base_url}/internal/stream-events",
+                    json=event,
+                    headers=headers,
+                )
             except httpx.TimeoutException as exc:
                 if attempt == max_attempts - 1:
                     raise UpstreamTransientError("게이트웨이 이벤트 전송이 시간 초과됐어요.") from exc

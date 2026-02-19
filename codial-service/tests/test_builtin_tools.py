@@ -21,7 +21,7 @@ from codial_service.app.tools.hashline import (
 )
 from codial_service.app.tools.registry import ToolRegistry
 from codial_service.app.tools.shell import ShellTool
-from codial_service.app.tools.string_replace import HashlineEditTool
+from codial_service.app.tools.hashline_edit import HashlineEditTool
 from codial_service.app.tools.web_fetch import WebFetchTool
 
 

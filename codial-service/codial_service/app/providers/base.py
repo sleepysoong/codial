@@ -45,7 +45,7 @@ class ProviderRequest:
     agents_summary: str
     skills_summary: str
     claude_memory_summary: str
-    mcp_tools: list[ProviderToolSpec] = field(default_factory=list)
+    tool_specs: list[ProviderToolSpec] = field(default_factory=list)
     tool_results: list[ProviderToolResult] = field(default_factory=list)
     tool_call_round: int = 0
 
