@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import pytest
 from codial_service.app.store import InMemorySessionStore, SessionStatus
-
 from tests.conftest import create_test_session
 
 

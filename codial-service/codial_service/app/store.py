@@ -3,12 +3,12 @@ from __future__ import annotations
 import asyncio
 import uuid
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 from libs.common.errors import NotFoundError
 
 
-class SessionStatus(str, Enum):
+class SessionStatus(StrEnum):
     ACTIVE = "active"
     ENDED = "ended"
 
@@ -34,7 +34,7 @@ class SessionRecord:
     mcp_profile_name: str | None
     subagent_name: str | None
 
-    def with_channel(self, channel_id: str) -> "SessionRecord":
+    def with_channel(self, channel_id: str) -> SessionRecord:
         return SessionRecord(
             session_id=self.session_id,
             guild_id=self.guild_id,
@@ -48,7 +48,7 @@ class SessionRecord:
             subagent_name=self.subagent_name,
         )
 
-    def with_status(self, status: SessionStatus) -> "SessionRecord":
+    def with_status(self, status: SessionStatus) -> SessionRecord:
         return SessionRecord(
             session_id=self.session_id,
             guild_id=self.guild_id,
@@ -62,7 +62,7 @@ class SessionRecord:
             subagent_name=self.subagent_name,
         )
 
-    def with_provider(self, provider: str) -> "SessionRecord":
+    def with_provider(self, provider: str) -> SessionRecord:
         return SessionRecord(
             session_id=self.session_id,
             guild_id=self.guild_id,
@@ -76,7 +76,7 @@ class SessionRecord:
             subagent_name=self.subagent_name,
         )
 
-    def with_model(self, model: str) -> "SessionRecord":
+    def with_model(self, model: str) -> SessionRecord:
         return SessionRecord(
             session_id=self.session_id,
             guild_id=self.guild_id,
@@ -90,7 +90,7 @@ class SessionRecord:
             subagent_name=self.subagent_name,
         )
 
-    def with_mcp(self, enabled: bool, profile_name: str | None) -> "SessionRecord":
+    def with_mcp(self, enabled: bool, profile_name: str | None) -> SessionRecord:
         return SessionRecord(
             session_id=self.session_id,
             guild_id=self.guild_id,
@@ -104,7 +104,7 @@ class SessionRecord:
             subagent_name=self.subagent_name,
         )
 
-    def with_subagent(self, subagent_name: str | None) -> "SessionRecord":
+    def with_subagent(self, subagent_name: str | None) -> SessionRecord:
         return SessionRecord(
             session_id=self.session_id,
             guild_id=self.guild_id,

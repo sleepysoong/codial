@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from codial_service.app.utils import normalize_str_list, split_frontmatter
 

@@ -15,7 +15,11 @@ from codial_service.app.providers.base import (
     ProviderToolResult,
     ProviderToolSpec,
 )
-from codial_service.app.subagent_spec import SubagentSpec, default_subagent_search_paths, discover_subagents
+from codial_service.app.subagent_spec import (
+    SubagentSpec,
+    default_subagent_search_paths,
+    discover_subagents,
+)
 from codial_service.app.tools.registry import ToolRegistry
 from codial_service.app.turn_events import TurnEventType
 from codial_service.modules.turns.contracts import (

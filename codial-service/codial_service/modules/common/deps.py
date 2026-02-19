@@ -14,7 +14,9 @@ from codial_service.modules.turns.service import TurnsService
 
 def get_settings(request: Request) -> Settings:
     configured = getattr(request.app.state, "settings", None)
-    return configured if isinstance(configured, Settings) else settings  # type: ignore[return-value]
+    if isinstance(configured, Settings):
+        return configured
+    return settings
 
 
 def require_auth(request: Request, authorization: str) -> None:

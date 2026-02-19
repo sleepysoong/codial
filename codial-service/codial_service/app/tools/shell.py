@@ -81,7 +81,7 @@ class ShellTool(BaseTool):
                 process.communicate(),
                 timeout=timeout,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return ToolResult(ok=False, error=f"명령 실행이 {timeout}초를 초과해 중단됐어요.")
         except OSError as exc:
             return ToolResult(ok=False, error=f"명령 실행에 실패했어요: {exc}")

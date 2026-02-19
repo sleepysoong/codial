@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
 import os
-from pathlib import Path
 from typing import Any
 
 from codial_service.app.providers.base import ProviderToolSpec
@@ -96,11 +96,8 @@ class ToolRegistry:
         Args:
             abs_path: 읽은 파일의 절대 경로예요.
         """
-        try:
+        with contextlib.suppress(OSError):
             self._read_mtimes[abs_path] = os.path.getmtime(abs_path)
-        except OSError:
-            # 파일이 없거나 권한 없으면 그냥 넘어가요
-            pass
 
     def check_file_edit_allowed(self, abs_path: str) -> str | None:
         """hashline_edit 호출 전 파일의 read 이력을 검증해요.

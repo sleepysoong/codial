@@ -47,14 +47,15 @@ class Settings(BaseSettings):
         return value  # type: ignore[return-value]
 
     @model_validator(mode="after")
-    def _warn_insecure_tokens(self) -> "Settings":
+    def _warn_insecure_tokens(self) -> Settings:
         """개발용 기본 토큰이 프로덕션에서 그대로 쓰이지 않도록 경고를 남겨요. (#20)"""
         import logging
+
         _log = logging.getLogger("codial_service.settings")
-        _INSECURE = {"dev-core-token", "dev-internal-token", ""}
-        if self.api_token in _INSECURE:
+        insecure_tokens = {"dev-core-token", "dev-internal-token", ""}
+        if self.api_token in insecure_tokens:
             _log.warning("CORE_API_TOKEN이 기본값이에요. 프로덕션 환경에서는 반드시 교체해야 해요.")
-        if self.gateway_internal_token in _INSECURE:
+        if self.gateway_internal_token in insecure_tokens:
             _log.warning("CORE_GATEWAY_INTERNAL_TOKEN이 기본값이에요. 프로덕션 환경에서는 반드시 교체해야 해요.")
         return self
 

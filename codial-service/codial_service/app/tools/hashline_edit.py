@@ -140,9 +140,10 @@ class HashlineEditTool(BaseTool):
             [line.rstrip("\n").rstrip("\r") for line in lines]
         )
 
-        new_content: str = arguments.get("new_content", "")
-        if not isinstance(new_content, str):
+        raw_new_content = arguments.get("new_content", "")
+        if not isinstance(raw_new_content, str):
             return ToolResult(ok=False, error="new_content 파라미터가 필요해요.")
+        new_content = raw_new_content
 
         insert_after = arguments.get("insert_after_hash")
 

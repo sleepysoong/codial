@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import Any
 
 import pytest
-
 from codial_service.app.tools.base import BaseTool, ToolResult
 from codial_service.app.tools.defaults import build_default_tool_registry
 from codial_service.app.tools.file_read import FileReadTool
@@ -19,11 +19,10 @@ from codial_service.app.tools.hashline import (
     generate_line_hash,
     resolve_hash_to_index,
 )
+from codial_service.app.tools.hashline_edit import HashlineEditTool
 from codial_service.app.tools.registry import ToolRegistry
 from codial_service.app.tools.shell import ShellTool
-from codial_service.app.tools.hashline_edit import HashlineEditTool
 from codial_service.app.tools.web_fetch import WebFetchTool
-
 
 # ─── ToolRegistry 테스트 ───
 
@@ -529,8 +528,6 @@ async def test_hashline_edit_allowed_after_file_read(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_hashline_edit_blocked_after_external_modification(tmp_path: Path) -> None:
     """file_read 후 외부에서 파일이 변경되면 다시 read 요구해야 해요."""
-    import time
-
     test_file = tmp_path / "code.py"
     test_file.write_text("x = 1\n", encoding="utf-8")
     registry = ToolRegistry()
@@ -543,7 +540,7 @@ async def test_hashline_edit_blocked_after_external_modification(tmp_path: Path)
     await read_tool.execute({"path": "code.py"})
 
     # 외부에서 파일 변경 (mtime을 미래로 강제)
-    time.sleep(0.01)
+    await asyncio.sleep(0.01)
     test_file.write_text("x = 2\n", encoding="utf-8")
 
     h_x = generate_line_hash("x = 2")
@@ -561,8 +558,6 @@ async def test_hashline_edit_blocked_after_external_modification(tmp_path: Path)
 @pytest.mark.asyncio
 async def test_hashline_edit_allowed_after_re_read(tmp_path: Path) -> None:
     """외부 변경 후 file_read를 다시 하면 편집이 허용돼야 해요."""
-    import time
-
     test_file = tmp_path / "code.py"
     test_file.write_text("x = 1\n", encoding="utf-8")
     registry = ToolRegistry()
@@ -575,7 +570,7 @@ async def test_hashline_edit_allowed_after_re_read(tmp_path: Path) -> None:
     await read_tool.execute({"path": "code.py"})
 
     # 외부 변경
-    time.sleep(0.01)
+    await asyncio.sleep(0.01)
     test_file.write_text("x = 2\n", encoding="utf-8")
 
     # 다시 read

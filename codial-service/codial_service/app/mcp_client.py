@@ -45,21 +45,14 @@ class McpClient:
         await self._client.aclose()
 
     async def ensure_initialized(self, *, client_name: str, client_version: str) -> McpInitializeResult:
-        """최초 호출 시에만 handshake를 수행하고 이후엔 캐시를 반환해요.
-
-        _init_lock 안에서 I/O를 수행하므로 _state_lock과 교차 획득이 없어요.
-        이중 확인(double-checked locking) 패턴으로 불필요한 초기화를 막아요.
-        """
-        # Fast path: 이미 초기화됐으면 락 없이 즉시 반환해요.
-        if self._init_result is not None:
-            return self._init_result
+        """최초 호출 시에만 handshake를 수행하고 이후엔 캐시를 반환해요."""
         async with self._init_lock:
-            # Slow path: 락 안에서 재확인해요.
-            if self._init_result is not None:
-                return self._init_result
-            result = await self._do_initialize(client_name=client_name, client_version=client_version)
-            self._init_result = result
-            return result
+            if self._init_result is None:
+                self._init_result = await self._do_initialize(
+                    client_name=client_name,
+                    client_version=client_version,
+                )
+            return self._init_result
 
     async def initialize(self, *, client_name: str, client_version: str) -> McpInitializeResult:
         """하위 호환성을 위해 남겨두되, 내부적으로 캐시를 사용해요."""

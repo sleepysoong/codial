@@ -10,8 +10,18 @@ class EventSinkProtocol(Protocol):
     async def publish(self, event: dict[str, Any]) -> None: ...
 
 
+class AttachmentIngestResultProtocol(Protocol):
+    summary: str
+
+
 class AttachmentIngestorProtocol(Protocol):
-    async def ingest(self, *, session_id: str, turn_id: str, attachments: list[Any]) -> Any: ...
+    async def ingest(
+        self,
+        *,
+        session_id: str,
+        turn_id: str,
+        attachments: list[Any],
+    ) -> AttachmentIngestResultProtocol: ...
 
 
 class McpClientProtocol(Protocol):

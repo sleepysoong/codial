@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Callable, Protocol
+from collections.abc import Callable
+from typing import Protocol
 
 from codial_service.app.providers.base import ProviderAdapter
 from codial_service.app.providers.http_bridge_adapter import HttpBridgeProviderAdapter
