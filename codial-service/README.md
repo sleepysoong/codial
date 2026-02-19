@@ -27,8 +27,8 @@ codial_service/
 │   └── lifespan.py
 └── modules/
     ├── common/
-    ├── sessions/
-    ├── turns/
+    ├── sessions/   # api.py + service.py
+    ├── turns/      # api.py + service.py
     ├── rules/
     └── health/
 ```

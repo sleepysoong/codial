@@ -8,6 +8,8 @@ from codial_service.app.session_service import SessionService
 from codial_service.app.settings import Settings, settings
 from codial_service.app.store import InMemorySessionStore
 from codial_service.app.turn_worker import TurnWorkerPool
+from codial_service.modules.sessions.service import SessionsService
+from codial_service.modules.turns.service import TurnsService
 
 
 def get_settings(request: Request) -> Settings:
@@ -45,3 +47,19 @@ def get_worker_pool(request: Request) -> TurnWorkerPool:
     if not isinstance(worker_pool, TurnWorkerPool):
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="작업 워커를 사용할 수 없어요.")
     return worker_pool
+
+
+def get_sessions_service(request: Request) -> SessionsService:
+    return SessionsService(
+        store=get_store(request),
+        session_defaults_service=get_session_service(request),
+        enabled_provider_names=enabled_provider_names(request),
+        workspace_root=get_settings(request).workspace_root,
+    )
+
+
+def get_turns_service(request: Request) -> TurnsService:
+    return TurnsService(
+        store=get_store(request),
+        worker_pool=get_worker_pool(request),
+    )

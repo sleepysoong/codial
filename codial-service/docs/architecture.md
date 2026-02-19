@@ -23,9 +23,11 @@ codial_service/
     ├── common/
     │   └── deps.py              # 인증/의존성 조회 공통 함수
     ├── sessions/
-    │   └── api.py               # 세션 관련 API
+    │   ├── api.py               # 세션 API 엔드포인트
+    │   └── service.py           # 세션 유스케이스 조합
     ├── turns/
-    │   └── api.py               # 턴 제출 API
+    │   ├── api.py               # 턴 제출 API
+    │   └── service.py           # 턴 제출 유스케이스
     ├── rules/
     │   └── api.py               # CODIAL 규칙 API
     └── health/
@@ -36,7 +38,7 @@ codial_service/
 
 1. `app/main.py`가 FastAPI 앱을 만들고 `modules` 라우터를 등록해요.
 2. `bootstrap/lifespan.py`가 시작 시 `bootstrap/container.py`로 컴포넌트를 조립해요.
-3. `modules/*/api.py`가 인증과 요청 검증 후 `app.state` 의존성을 사용해 동작해요.
+3. `modules/*/api.py`는 인증/HTTP 매핑을 담당하고, 실제 유스케이스는 `service.py`로 위임해요.
 4. 턴 처리 요청은 `TurnWorkerPool` 큐로 전달돼 비동기로 처리돼요.
 
 ## 하위 호환성
