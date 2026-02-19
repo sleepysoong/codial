@@ -34,3 +34,15 @@ codial-service-dev = "codial_service.cli:main_dev"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["codial_service*"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unused_ignores = true
+warn_return_any = true
+warn_unreachable = true
+disallow_any_generics = true
+no_implicit_optional = true
+show_error_codes = true
+pretty = true
+mypy_path = [".."]
