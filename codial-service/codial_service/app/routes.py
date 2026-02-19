@@ -21,7 +21,6 @@ from codial_service.app.models import (
     SetSubagentRequest,
     SubmitTurnRequest,
 )
-from codial_service.app.session_service import SessionService
 from codial_service.app.providers.catalog import (
     get_enabled_provider_names,
 )

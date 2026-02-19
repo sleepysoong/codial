@@ -42,10 +42,6 @@ class AttachmentIngestorProtocol(Protocol):
 class McpClientProtocol(Protocol):
     async def ensure_initialized(self, *, client_name: str, client_version: str) -> Any: ...
     async def list_tools(self) -> list[Any]: ...
-    async def list_prompts(self) -> list[Any]: ...
-    async def list_resources(self) -> list[Any]: ...
-    async def list_resource_templates(self) -> list[Any]: ...
-    async def ping(self) -> None: ...
     async def call_tool(self, *, name: str, arguments: dict[str, Any]) -> dict[str, Any]: ...
 
 
@@ -329,7 +325,6 @@ class TurnWorkerPool:
         builtin_tool_names: set[str],
     ) -> list[ProviderToolSpec]:
         """MCP 도구를 수집하고 내장 도구와 합쳐요. (#9: ensure_initialized로 캐싱 사용)"""
-        # 먼저 내장 도구 등록 로그
         await self._emit(
             task,
             TurnEventType.ACTION,
@@ -346,45 +341,32 @@ class TurnWorkerPool:
         server_name = initialize_result.server_name or "알 수 없는 서버"
         protocol_version = initialize_result.protocol_version or "미확인"
 
-        mcp_tools: list[ProviderToolSpec] = []
-        tools_count = prompts_count = resources_count = template_count = 0
-
         try:
             raw_tools = await self._mcp_client.list_tools()
-            tools_count = len(raw_tools)
-            mcp_tools = [
-                ProviderToolSpec(
-                    name=tool.name,
-                    title=tool.title,
-                    description=tool.description,
-                    input_schema=tool.input_schema,
-                    output_schema=tool.output_schema,
-                )
-                for tool in raw_tools
-            ]
         except UpstreamTransientError as exc:
             logger.warning("mcp_tools_list_failed", session_id=task.session_id, error=str(exc))
+            await self._emit(
+                task,
+                TurnEventType.ACTION,
+                {
+                    "text": (
+                        f"MCP 서버 `{server_name}` 연결은 완료했지만 도구 목록을 가져오지 못했어요. "
+                        "이번 턴은 내장 도구만 사용해요."
+                    )
+                },
+            )
+            return all_tool_specs
 
-        try:
-            prompts_count = len(await self._mcp_client.list_prompts())
-        except UpstreamTransientError as exc:
-            logger.warning("mcp_prompts_list_failed", session_id=task.session_id, error=str(exc))
-
-        try:
-            resources = await self._mcp_client.list_resources()
-            resources_count = len(resources)
-        except UpstreamTransientError as exc:
-            logger.warning("mcp_resources_list_failed", session_id=task.session_id, error=str(exc))
-
-        try:
-            template_count = len(await self._mcp_client.list_resource_templates())
-        except UpstreamTransientError as exc:
-            logger.warning("mcp_resource_templates_list_failed", session_id=task.session_id, error=str(exc))
-
-        try:
-            await self._mcp_client.ping()
-        except UpstreamTransientError as exc:
-            logger.warning("mcp_ping_failed", session_id=task.session_id, error=str(exc))
+        mcp_tools = [
+            ProviderToolSpec(
+                name=tool.name,
+                title=tool.title,
+                description=tool.description,
+                input_schema=tool.input_schema,
+                output_schema=tool.output_schema,
+            )
+            for tool in raw_tools
+        ]
 
         await self._emit(
             task,
@@ -392,8 +374,7 @@ class TurnWorkerPool:
             {
                 "text": (
                     f"MCP 서버 `{server_name}`를 연결했고 프로토콜 `{protocol_version}`로 합의했어요. "
-                    f"도구={tools_count}개, 프롬프트={prompts_count}개, 리소스={resources_count}개, "
-                    f"리소스 템플릿={template_count}개를 확인했어요."
+                    f"도구={len(mcp_tools)}개를 확인했어요."
                 )
             },
         )
@@ -519,8 +500,16 @@ class TurnWorkerPool:
             )
 
     async def _call_mcp_tool(self, task: TurnTask, tool_request: Any) -> ProviderToolResult:
+        mcp_client = self._mcp_client
+        if mcp_client is None:
+            return ProviderToolResult(
+                name=tool_request.name,
+                call_id=tool_request.call_id,
+                ok=False,
+                error="MCP 클라이언트를 사용할 수 없어요.",
+            )
         try:
-            tool_result = await self._mcp_client.call_tool(  # type: ignore[union-attr]
+            tool_result = await mcp_client.call_tool(
                 name=tool_request.name,
                 arguments=tool_request.arguments,
             )

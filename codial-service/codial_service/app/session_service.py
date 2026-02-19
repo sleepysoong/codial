@@ -8,9 +8,6 @@ from __future__ import annotations
 from codial_service.app.policy_loader import PolicyLoader, extract_agent_defaults
 from codial_service.app.providers.catalog import choose_default_provider
 from codial_service.app.store import InMemorySessionStore, SessionRecord
-from libs.common.logging import get_logger
-
-logger = get_logger("codial_service.session_service")
 
 _DEFAULT_MODEL = "gpt-5-mini"
 _DEFAULT_MCP_ENABLED = True
@@ -34,7 +31,7 @@ class SessionService:
         self,
         guild_id: str,
         requester_id: str,
-        idempotency_key: str | None,
+        idempotency_key: str,
     ) -> SessionRecord:
         """정책에서 에이전트 기본값을 읽어 세션을 생성해요.
 
