@@ -5,16 +5,19 @@
 포맷의 해시를 앵커로 사용하므로 공백/들여쓰기 불일치 문제가 사라져요.
 
 사용 흐름:
-    1. ``file_read``로 파일을 읽어서 각 줄의 해시를 확인해요.
+    1. ``file_read``로 파일을 읽어서 각 줄의 해시를 확인해요. (필수)
     2. 수정할 시작/끝 줄의 해시를 ``start_hash``/``end_hash``로 지정해요.
     3. ``new_content``에 대체할 새 코드를 작성해요.
     4. 지정 범위가 새 코드로 교체돼요.
+
+주의: file_read 없이 hashline_edit을 호출하면 거부돼요.
+      파일이 변경된 이후에도 다시 file_read를 호출해야 해요.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from codial_service.app.tools.base import BaseTool, ToolResult
 from codial_service.app.tools.hashline import (
@@ -23,12 +26,16 @@ from codial_service.app.tools.hashline import (
     resolve_hash_to_index,
 )
 
+if TYPE_CHECKING:
+    from codial_service.app.tools.registry import ToolRegistry
+
 
 class HashlineEditTool(BaseTool):
     """해시 앵커 기반으로 파일의 특정 라인 범위를 교체하는 도구예요."""
 
-    def __init__(self, *, workspace_root: str = ".") -> None:
+    def __init__(self, *, workspace_root: str = ".", registry: ToolRegistry | None = None) -> None:
         self._workspace_root = Path(workspace_root).resolve()
+        self._registry = registry
 
     @property
     def name(self) -> str:
@@ -37,6 +44,9 @@ class HashlineEditTool(BaseTool):
     @property
     def description(self) -> str:
         return (
+            "⚠️ 반드시 file_read로 파일을 먼저 읽은 후에만 호출할 수 있어요. "
+            "file_read 없이 호출하면 오류가 발생해요. "
+            "파일이 수정된 이후에도 다시 file_read로 읽어야 해요. "
             "file_read의 Hashline 포맷(줄번호:해시| 내용)에서 확인한 "
             "해시 앵커를 사용하여 파일의 특정 라인 범위를 새 코드로 교체해요. "
             "start_hash부터 end_hash까지의 라인이 new_content로 대체돼요. "
@@ -112,6 +122,12 @@ class HashlineEditTool(BaseTool):
 
         if not target.is_file():
             return ToolResult(ok=False, error=f"파일을 찾을 수 없어요: {target}")
+
+        # ── file_read 이력 검증 ──
+        if self._registry is not None:
+            deny_reason = self._registry.check_file_edit_allowed(str(target))
+            if deny_reason is not None:
+                return ToolResult(ok=False, error=deny_reason)
 
         # ── 파일 읽기 ──
         try:

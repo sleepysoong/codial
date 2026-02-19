@@ -7,10 +7,13 @@ LLM이 해시 앵커로 정확한 위치를 지정할 수 있게 해 줘요.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from codial_service.app.tools.base import BaseTool, ToolResult
 from codial_service.app.tools.hashline import format_lines_with_hash
+
+if TYPE_CHECKING:
+    from codial_service.app.tools.registry import ToolRegistry
 
 
 class FileReadTool(BaseTool):
@@ -22,10 +25,12 @@ class FileReadTool(BaseTool):
         workspace_root: str = ".",
         max_lines: int = 2000,
         max_bytes: int = 500_000,
+        registry: ToolRegistry | None = None,
     ) -> None:
         self._workspace_root = Path(workspace_root).resolve()
         self._max_lines = max_lines
         self._max_bytes = max_bytes
+        self._registry = registry
 
     @property
     def name(self) -> str:
@@ -124,6 +129,10 @@ class FileReadTool(BaseTool):
             [line.rstrip() for line in selected],
             start=offset,
         )
+
+        # 성공적으로 읽었으면 registry에 read 이력을 기록해요
+        if self._registry is not None:
+            self._registry.notify_file_read(str(target))
 
         return ToolResult(
             ok=True,

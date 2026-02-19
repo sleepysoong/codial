@@ -475,3 +475,134 @@ async def test_web_fetch_tool_missing_url() -> None:
     tool = WebFetchTool()
     result = await tool.execute({})
     assert result.ok is False
+
+
+# ─── file_read → hashline_edit 강제 순서 테스트 ───
+
+
+@pytest.mark.asyncio
+async def test_hashline_edit_blocked_without_file_read(tmp_path: Path) -> None:
+    """file_read 없이 hashline_edit 호출 시 거부돼야 해요."""
+    test_file = tmp_path / "code.py"
+    test_file.write_text("x = 1\n", encoding="utf-8")
+    registry = ToolRegistry()
+    edit_tool = HashlineEditTool(workspace_root=str(tmp_path), registry=registry)
+    registry.register(edit_tool)
+
+    h_x = generate_line_hash("x = 1")
+    result = await edit_tool.execute({
+        "path": "code.py",
+        "start_hash": h_x,
+        "end_hash": h_x,
+        "new_content": "x = 99\n",
+    })
+    assert result.ok is False
+    assert "file_read" in result.error
+
+
+@pytest.mark.asyncio
+async def test_hashline_edit_allowed_after_file_read(tmp_path: Path) -> None:
+    """file_read 후 hashline_edit이 허용돼야 해요."""
+    test_file = tmp_path / "code.py"
+    test_file.write_text("x = 1\n", encoding="utf-8")
+    registry = ToolRegistry()
+    read_tool = FileReadTool(workspace_root=str(tmp_path), registry=registry)
+    edit_tool = HashlineEditTool(workspace_root=str(tmp_path), registry=registry)
+    registry.register(read_tool)
+    registry.register(edit_tool)
+
+    # file_read 먼저
+    read_result = await read_tool.execute({"path": "code.py"})
+    assert read_result.ok is True
+
+    h_x = generate_line_hash("x = 1")
+    result = await edit_tool.execute({
+        "path": "code.py",
+        "start_hash": h_x,
+        "end_hash": h_x,
+        "new_content": "x = 99\n",
+    })
+    assert result.ok is True
+    assert "x = 99" in test_file.read_text(encoding="utf-8")
+
+
+@pytest.mark.asyncio
+async def test_hashline_edit_blocked_after_external_modification(tmp_path: Path) -> None:
+    """file_read 후 외부에서 파일이 변경되면 다시 read 요구해야 해요."""
+    import time
+
+    test_file = tmp_path / "code.py"
+    test_file.write_text("x = 1\n", encoding="utf-8")
+    registry = ToolRegistry()
+    read_tool = FileReadTool(workspace_root=str(tmp_path), registry=registry)
+    edit_tool = HashlineEditTool(workspace_root=str(tmp_path), registry=registry)
+    registry.register(read_tool)
+    registry.register(edit_tool)
+
+    # file_read 먼저
+    await read_tool.execute({"path": "code.py"})
+
+    # 외부에서 파일 변경 (mtime을 미래로 강제)
+    time.sleep(0.01)
+    test_file.write_text("x = 2\n", encoding="utf-8")
+
+    h_x = generate_line_hash("x = 2")
+    result = await edit_tool.execute({
+        "path": "code.py",
+        "start_hash": h_x,
+        "end_hash": h_x,
+        "new_content": "x = 99\n",
+    })
+    assert result.ok is False
+    assert "변경됐어요" in result.error
+    assert "file_read" in result.error
+
+
+@pytest.mark.asyncio
+async def test_hashline_edit_allowed_after_re_read(tmp_path: Path) -> None:
+    """외부 변경 후 file_read를 다시 하면 편집이 허용돼야 해요."""
+    import time
+
+    test_file = tmp_path / "code.py"
+    test_file.write_text("x = 1\n", encoding="utf-8")
+    registry = ToolRegistry()
+    read_tool = FileReadTool(workspace_root=str(tmp_path), registry=registry)
+    edit_tool = HashlineEditTool(workspace_root=str(tmp_path), registry=registry)
+    registry.register(read_tool)
+    registry.register(edit_tool)
+
+    # 최초 read
+    await read_tool.execute({"path": "code.py"})
+
+    # 외부 변경
+    time.sleep(0.01)
+    test_file.write_text("x = 2\n", encoding="utf-8")
+
+    # 다시 read
+    await read_tool.execute({"path": "code.py"})
+
+    h_x = generate_line_hash("x = 2")
+    result = await edit_tool.execute({
+        "path": "code.py",
+        "start_hash": h_x,
+        "end_hash": h_x,
+        "new_content": "x = 99\n",
+    })
+    assert result.ok is True
+
+
+@pytest.mark.asyncio
+async def test_hashline_edit_no_registry_bypasses_check(tmp_path: Path) -> None:
+    """registry=None으로 생성한 도구는 read 이력 검사를 건너뛰어요."""
+    test_file = tmp_path / "code.py"
+    test_file.write_text("x = 1\n", encoding="utf-8")
+    # registry 없이 단독 생성 (테스트 편의용)
+    tool = HashlineEditTool(workspace_root=str(tmp_path))
+    h_x = generate_line_hash("x = 1")
+    result = await tool.execute({
+        "path": "code.py",
+        "start_hash": h_x,
+        "end_hash": h_x,
+        "new_content": "x = 0\n",
+    })
+    assert result.ok is True
