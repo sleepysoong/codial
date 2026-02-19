@@ -20,6 +20,7 @@ from codial_service.app.providers.copilot_auth import (
 from codial_service.app.providers.manager import ProviderManager
 from codial_service.app.routes import router
 from codial_service.app.settings import settings
+from codial_service.app.tools.defaults import build_default_tool_registry
 from codial_service.app.turn_worker import TurnWorkerPool
 from libs.common.http_handlers import register_exception_handlers
 from libs.common.logging import configure_logging
@@ -75,12 +76,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             token=settings.mcp_server_token,
             timeout_seconds=settings.mcp_request_timeout_seconds,
         )
+    tool_registry = build_default_tool_registry(workspace_root=settings.workspace_root)
     worker_pool = TurnWorkerPool(
         sink=sink,
         attachment_ingestor=attachment_ingestor,
         mcp_client=mcp_client,
         provider_manager=provider_manager,
         policy_loader=policy_loader,
+        tool_registry=tool_registry,
         worker_count=settings.turn_worker_count,
         workspace_root=settings.workspace_root,
     )

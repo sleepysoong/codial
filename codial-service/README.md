@@ -434,17 +434,93 @@ Payload 형식:
 1. 워커가 MCP 도구 메타를 조회해 프로바이더 브리지로 전달해요.
 2. 브리지가 `tool_requests`를 반환하면 코어가 `tools/call`로 실제 MCP 도구를 실행해요.
 3. 실행 결과(`tool_results`)를 다시 브리지에 재주입해 최종 답변을 완성해요.
-4. 최대 도구 호출 라운드는 5회로 제한해요.
+4. 도구 호출 라운드에 횟수 제한이 없어요. 프로바이더가 도구 호출을 중단할 때까지 계속 실행해요.
 
 현재 transport는 HTTP JSON-RPC 기반이에요.
 
-## 12) 운영상 주의점
+## 12) 내장 도구 시스템
+
+MCP 외부 서버 없이도 동작하는 내장 도구가 기본 제공돼요.
+`BaseTool` 추상 클래스를 상속하면 새 도구를 쉽게 추가할 수 있어요.
+
+### 아키텍처
+
+```
+ToolRegistry (중앙 레지스트리)
+├── BaseTool (추상 클래스)
+│   ├── web_fetch    - URL에서 콘텐츠를 가져와요
+│   ├── shell        - 셸 명령을 실행해요
+│   ├── file_read    - 파일/디렉터리 내용을 읽어요
+│   ├── file_write   - 파일을 생성하거나 덮어써요
+│   ├── string_replace - 파일 내 문자열을 치환해요
+│   ├── glob         - 패턴으로 파일을 검색해요
+│   └── grep         - 정규식으로 파일 내용을 검색해요
+└── (사용자 확장 도구)
+```
+
+### 기본 제공 도구
+
+| 도구 | 설명 | 주요 파라미터 |
+|------|------|--------------|
+| `web_fetch` | HTTP(S) URL에서 텍스트 콘텐츠를 가져와요 | `url` (필수), `method`, `headers`, `body` |
+| `shell` | 셸 명령을 비동기로 실행해요 | `command` (필수), `workdir`, `timeout` |
+| `file_read` | 파일 또는 디렉터리 내용을 읽어요 | `path` (필수), `offset`, `limit` |
+| `file_write` | 파일에 내용을 기록해요 | `path` (필수), `content` (필수) |
+| `string_replace` | 파일에서 문자열을 찾아 치환해요 | `path`, `old_string`, `new_string` (모두 필수), `replace_all` |
+| `glob` | Glob 패턴으로 파일을 검색해요 | `pattern` (필수), `path` |
+| `grep` | 정규식으로 파일 내용을 검색해요 | `pattern` (필수), `path`, `include` |
+
+### 도구 실행 우선순위
+
+프로바이더가 도구 호출을 요청하면 다음 순서로 실행해요:
+
+1. **내장 도구**: `ToolRegistry`에 등록된 도구인지 확인하고, 등록돼 있으면 로컬에서 직접 실행해요.
+2. **MCP 도구**: 내장 도구가 아니면 MCP 서버에 `tools/call`로 실행을 위임해요.
+3. **미등록**: 내장 도구도 아니고 MCP도 비활성이면 실패 결과를 반환해요.
+
+내장 도구와 MCP 도구 이름이 충돌하면 **내장 도구가 우선**이에요.
+
+### 새 도구 추가 방법
+
+`BaseTool`을 상속하는 클래스를 만들고 `ToolRegistry`에 등록하면 돼요:
+
+```python
+from codial_service.app.tools.base import BaseTool, ToolResult
+
+class MyCustomTool(BaseTool):
+    @property
+    def name(self) -> str:
+        return "my_tool"
+
+    @property
+    def description(self) -> str:
+        return "나만의 도구예요."
+
+    @property
+    def input_schema(self) -> dict:
+        return {
+            "type": "object",
+            "properties": {
+                "param1": {"type": "string", "description": "파라미터 설명"},
+            },
+            "required": ["param1"],
+        }
+
+    async def execute(self, arguments: dict) -> ToolResult:
+        value = arguments.get("param1", "")
+        return ToolResult(ok=True, output=f"결과: {value}")
+```
+
+`defaults.py`에서 `build_default_tool_registry()`에 등록하거나,
+런타임에 `registry.register(MyCustomTool())`로 추가할 수 있어요.
+
+## 13) 운영상 주의점
 
 - 세션 저장소가 인메모리라 재시작 시 세션이 유지되지 않아요.
 - 워커 큐도 프로세스 메모리 기반이라 재시작 시 대기 작업이 유실돼요.
 - 운영 환경에서는 리버스 프록시/TLS/비밀값 관리(Secret Manager)를 반드시 붙여요.
 
-## 13) 개발 체크리스트
+## 14) 개발 체크리스트
 
 ```bash
 python -m ruff check .

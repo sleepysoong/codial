@@ -23,11 +23,12 @@ from codial_service.app.providers.base import (
 )
 from codial_service.app.providers.manager import ProviderManager
 from codial_service.app.subagent_spec import SubagentSpec, discover_subagents
+from codial_service.app.tools.registry import ToolRegistry
 from libs.common.errors import UpstreamTransientError
 from libs.common.logging import get_logger
 
 logger = get_logger("codial_service.turn_worker")
-MAX_TOOL_CALL_ROUNDS = 5
+
 
 
 @dataclass(slots=True)
@@ -52,6 +53,7 @@ class TurnWorkerPool:
         mcp_client: McpClient | None,
         provider_manager: ProviderManager,
         policy_loader: PolicyLoader,
+        tool_registry: ToolRegistry,
         worker_count: int,
         workspace_root: str,
     ) -> None:
@@ -60,6 +62,7 @@ class TurnWorkerPool:
         self._mcp_client = mcp_client
         self._provider_manager = provider_manager
         self._policy_loader = policy_loader
+        self._tool_registry = tool_registry
         self._worker_count = worker_count
         self._workspace_root = Path(workspace_root)
         self._queue: asyncio.Queue[TurnTask] = asyncio.Queue(maxsize=1000)
@@ -218,6 +221,22 @@ class TurnWorkerPool:
         )
         await self._emit(task, "action", {"text": ingest_result.summary})
 
+        # --- 내장 도구 스펙 수집 ---
+        builtin_tool_names: set[str] = set()
+        all_tool_specs: list[ProviderToolSpec] = []
+
+        builtin_specs = self._tool_registry.to_provider_specs()
+        for spec in builtin_specs:
+            builtin_tool_names.add(spec.name)
+            all_tool_specs.append(spec)
+
+        await self._emit(
+            task,
+            "action",
+            {"text": f"내장 도구 {len(builtin_specs)}개를 등록했어요: {', '.join(sorted(builtin_tool_names))}"},
+        )
+
+        # --- MCP 도구 스펙 수집 ---
         mcp_tools: list[ProviderToolSpec] = []
         if effective_mcp_enabled and self._mcp_client is not None:
             initialize_result = await self._mcp_client.initialize(
@@ -281,6 +300,11 @@ class TurnWorkerPool:
                 },
             )
 
+        # MCP 도구를 전체 도구 목록에 합쳐요 (내장 도구와 이름 충돌 시 내장 도구 우선)
+        for mcp_spec in mcp_tools:
+            if mcp_spec.name not in builtin_tool_names:
+                all_tool_specs.append(mcp_spec)
+
         enforce_provider_and_model(
             provider=task.provider,
             model=effective_model,
@@ -290,8 +314,9 @@ class TurnWorkerPool:
 
         provider_adapter = self._provider_manager.resolve(task.provider)
         next_tool_results: list[ProviderToolResult] = []
+        round_index = 0
 
-        for round_index in range(MAX_TOOL_CALL_ROUNDS):
+        while True:
             provider_request = ProviderRequest(
                 session_id=task.session_id,
                 user_id=task.user_id,
@@ -305,7 +330,7 @@ class TurnWorkerPool:
                 agents_summary=policy_snapshot.agents_summary,
                 skills_summary=policy_snapshot.skills_summary,
                 claude_memory_summary=effective_claude_memory_summary,
-                mcp_tools=mcp_tools,
+                mcp_tools=all_tool_specs,
                 tool_results=next_tool_results,
                 tool_call_round=round_index,
             )
@@ -319,65 +344,98 @@ class TurnWorkerPool:
                 await self._emit(task, "final", {"text": "작업을 완료했어요."})
                 return
 
-            if not effective_mcp_enabled:
-                await self._emit(
-                    task,
-                    "action",
-                    {"text": "프로바이더가 도구 호출을 요청했지만 MCP가 비활성 상태라 도구를 실행하지 않았어요."},
-                )
-                await self._emit(task, "final", {"text": "도구 요청을 처리하지 못해 작업을 종료했어요."})
-                return
-
-            if self._mcp_client is None:
-                await self._emit(
-                    task,
-                    "action",
-                    {"text": "프로바이더가 도구 호출을 요청했지만 MCP 클라이언트가 없어 실행하지 못했어요."},
-                )
-                await self._emit(task, "final", {"text": "도구 요청을 처리하지 못해 작업을 종료했어요."})
-                return
-
             next_tool_results = []
             for tool_request in provider_response.tool_requests:
-                try:
-                    tool_result = await self._mcp_client.call_tool(
-                        name=tool_request.name,
-                        arguments=tool_request.arguments,
-                    )
-                    next_tool_results.append(
-                        ProviderToolResult(
-                            name=tool_request.name,
-                            call_id=tool_request.call_id,
-                            ok=True,
-                            result=tool_result,
+                # 내장 도구인지 확인
+                if tool_request.name in builtin_tool_names:
+                    try:
+                        builtin_result = await self._tool_registry.call(
+                            tool_request.name,
+                            tool_request.arguments,
                         )
-                    )
-                    await self._emit(
-                        task,
-                        "action",
-                        {"text": f"MCP 도구 `{tool_request.name}` 호출을 성공적으로 완료했어요."},
-                    )
-                except Exception as exc:
-                    error_text = str(exc) or "알 수 없는 오류"
+                        next_tool_results.append(
+                            ProviderToolResult(
+                                name=tool_request.name,
+                                call_id=tool_request.call_id,
+                                ok=builtin_result.ok,
+                                result={"output": builtin_result.output, **builtin_result.metadata}
+                                if builtin_result.ok
+                                else None,
+                                error=builtin_result.error if not builtin_result.ok else None,
+                            )
+                        )
+                        status = "성공" if builtin_result.ok else "실패"
+                        await self._emit(
+                            task,
+                            "action",
+                            {"text": f"내장 도구 `{tool_request.name}` 호출을 {status}했어요."},
+                        )
+                    except Exception as exc:
+                        error_text = str(exc) or "알 수 없는 오류"
+                        next_tool_results.append(
+                            ProviderToolResult(
+                                name=tool_request.name,
+                                call_id=tool_request.call_id,
+                                ok=False,
+                                error=error_text,
+                            )
+                        )
+                        await self._emit(
+                            task,
+                            "action",
+                            {"text": f"내장 도구 `{tool_request.name}` 호출이 실패했어요: {error_text}"},
+                        )
+                # MCP 도구
+                elif effective_mcp_enabled and self._mcp_client is not None:
+                    try:
+                        tool_result = await self._mcp_client.call_tool(
+                            name=tool_request.name,
+                            arguments=tool_request.arguments,
+                        )
+                        next_tool_results.append(
+                            ProviderToolResult(
+                                name=tool_request.name,
+                                call_id=tool_request.call_id,
+                                ok=True,
+                                result=tool_result,
+                            )
+                        )
+                        await self._emit(
+                            task,
+                            "action",
+                            {"text": f"MCP 도구 `{tool_request.name}` 호출을 성공적으로 완료했어요."},
+                        )
+                    except Exception as exc:
+                        error_text = str(exc) or "알 수 없는 오류"
+                        next_tool_results.append(
+                            ProviderToolResult(
+                                name=tool_request.name,
+                                call_id=tool_request.call_id,
+                                ok=False,
+                                error=error_text,
+                            )
+                        )
+                        await self._emit(
+                            task,
+                            "action",
+                            {"text": f"MCP 도구 `{tool_request.name}` 호출이 실패했어요: {error_text}"},
+                        )
+                else:
                     next_tool_results.append(
                         ProviderToolResult(
                             name=tool_request.name,
                             call_id=tool_request.call_id,
                             ok=False,
-                            error=error_text,
+                            error=f"도구 `{tool_request.name}`을 실행할 수 없어요. 내장 도구가 아니고 MCP도 비활성 상태예요.",
                         )
                     )
                     await self._emit(
                         task,
                         "action",
-                        {"text": f"MCP 도구 `{tool_request.name}` 호출이 실패했어요: {error_text}"},
+                        {"text": f"도구 `{tool_request.name}`을 실행할 수 없어요 (미등록 도구, MCP 비활성)."},
                     )
 
-        await self._emit(
-            task,
-            "final",
-            {"text": f"도구 호출 라운드가 {MAX_TOOL_CALL_ROUNDS}회를 넘어 작업을 종료했어요."},
-        )
+            round_index += 1
 
     async def _emit(self, task: TurnTask, event_type: str, payload: dict[str, Any]) -> None:
         event = {
