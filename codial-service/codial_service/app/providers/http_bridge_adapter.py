@@ -45,7 +45,7 @@ class HttpBridgeProviderAdapter(ProviderAdapter):
             "text": request.text,
             "mcp_enabled": request.mcp_enabled,
             "mcp_profile_name": request.mcp_profile_name,
-            "claude_memory_summary": request.claude_memory_summary,
+            "system_memory_summary": request.system_memory_summary,
             "tool_call_round": request.tool_call_round,
             "mcp_tools": [
                 {

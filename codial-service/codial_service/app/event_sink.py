@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import random
 from typing import Any
 
 import httpx
@@ -31,19 +32,26 @@ class GatewayEventSink:
             except httpx.TimeoutException as exc:
                 if attempt == max_attempts - 1:
                     raise UpstreamTransientError("게이트웨이 이벤트 전송이 시간 초과됐어요.") from exc
-                await asyncio.sleep(0.3 * (attempt + 1))
+                await self._backoff(attempt)
                 continue
             except httpx.HTTPError as exc:
                 if attempt == max_attempts - 1:
                     raise UpstreamTransientError("게이트웨이 이벤트 전송 네트워크 오류가 발생했어요.") from exc
-                await asyncio.sleep(0.3 * (attempt + 1))
+                await self._backoff(attempt)
                 continue
 
             if response.status_code >= 500:
                 if attempt == max_attempts - 1:
                     raise UpstreamTransientError("게이트웨이 이벤트 수신 서버 오류가 발생했어요.")
-                await asyncio.sleep(0.3 * (attempt + 1))
+                await self._backoff(attempt)
                 continue
 
             response.raise_for_status()
             return
+
+    @staticmethod
+    async def _backoff(attempt: int) -> None:
+        """지수 백오프에 ±20 % 범위의 full jitter를 적용해요."""
+        base = 0.3 * (2 ** attempt)
+        jitter = base * random.uniform(-0.2, 0.2)
+        await asyncio.sleep(base + jitter)

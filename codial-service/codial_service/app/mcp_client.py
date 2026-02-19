@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import httpx
@@ -28,15 +29,43 @@ class McpClient:
         self._server_url = server_url.rstrip("/")
         self._token = token
         self._timeout_seconds = timeout_seconds
+        # Lock을 역할별로 분리해요 — _state_lock 하나로 묶으면 ensure_initialized 안에서
+        # _call_raw가 _state_lock을 재획득하려다 데드락이 발생해요 (#2)
+        self._request_id_lock = asyncio.Lock()   # request ID 카운터 전용
+        self._init_lock = asyncio.Lock()          # 초기화 직렬화 전용
+        self._session_id_lock = asyncio.Lock()    # session ID 갱신 전용
         self._request_id = 0
         self._protocol_version: str | None = None
         self._session_id: str | None = None
+        # 초기화 결과를 캐싱해요 — 매 Turn마다 handshake를 반복하지 않아요 (#9)
+        self._init_result: McpInitializeResult | None = None
         self._client = httpx.AsyncClient(timeout=self._timeout_seconds)
 
     async def aclose(self) -> None:
         await self._client.aclose()
 
+    async def ensure_initialized(self, *, client_name: str, client_version: str) -> McpInitializeResult:
+        """최초 호출 시에만 handshake를 수행하고 이후엔 캐시를 반환해요.
+
+        _init_lock 안에서 I/O를 수행하므로 _state_lock과 교차 획득이 없어요.
+        이중 확인(double-checked locking) 패턴으로 불필요한 초기화를 막아요.
+        """
+        # Fast path: 이미 초기화됐으면 락 없이 즉시 반환해요.
+        if self._init_result is not None:
+            return self._init_result
+        async with self._init_lock:
+            # Slow path: 락 안에서 재확인해요.
+            if self._init_result is not None:
+                return self._init_result
+            result = await self._do_initialize(client_name=client_name, client_version=client_version)
+            self._init_result = result
+            return result
+
     async def initialize(self, *, client_name: str, client_version: str) -> McpInitializeResult:
+        """하위 호환성을 위해 남겨두되, 내부적으로 캐시를 사용해요."""
+        return await self.ensure_initialized(client_name=client_name, client_version=client_version)
+
+    async def _do_initialize(self, *, client_name: str, client_version: str) -> McpInitializeResult:
         params = {
             "protocolVersion": MCP_PROTOCOL_VERSION,
             "capabilities": {},
@@ -45,6 +74,7 @@ class McpClient:
                 "version": client_version,
             },
         }
+        # _call을 통해 호출해요 — _call_raw를 직접 호출하면 테스트 스텁이 개입할 수 없어요.
         response = await self._call(
             "initialize",
             params,
@@ -280,7 +310,27 @@ class McpClient:
             headers["MCP-Session-Id"] = self._session_id
         return headers
 
+    async def _next_request_id(self) -> int:
+        async with self._request_id_lock:
+            self._request_id += 1
+            return self._request_id
+
     async def _call(
+        self,
+        method: str,
+        params: dict[str, Any],
+        *,
+        include_protocol_header: bool = True,
+        include_session_header: bool = True,
+    ) -> dict[str, Any]:
+        return await self._call_raw(
+            method,
+            params,
+            include_protocol_header=include_protocol_header,
+            include_session_header=include_session_header,
+        )
+
+    async def _call_raw(
         self,
         method: str,
         params: dict[str, Any],
@@ -291,10 +341,10 @@ class McpClient:
         if not self._server_url:
             raise ConfigurationError("MCP 서버 주소가 설정되지 않았어요.")
 
-        self._request_id += 1
+        request_id = await self._next_request_id()
         payload = {
             "jsonrpc": JSONRPC_VERSION,
-            "id": self._request_id,
+            "id": request_id,
             "method": method,
             "params": params,
         }
@@ -315,9 +365,10 @@ class McpClient:
             raise UpstreamTransientError("MCP 서버 오류가 발생했어요.")
         response.raise_for_status()
 
-        session_id_value = response.headers.get("MCP-Session-Id")
-        if isinstance(session_id_value, str) and session_id_value:
-            self._session_id = session_id_value
+        async with self._session_id_lock:
+            session_id_value = response.headers.get("MCP-Session-Id")
+            if isinstance(session_id_value, str) and session_id_value:
+                self._session_id = session_id_value
 
         data = response.json()
         if not isinstance(data, dict):

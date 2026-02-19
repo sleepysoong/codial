@@ -23,7 +23,7 @@ class PolicySnapshot:
     rules_text: str
     agents_text: str
     available_skills: list[str]
-    claude_memory_summary: str
+    system_memory_summary: str
     claude_memory_text: str
 
 
@@ -65,7 +65,7 @@ class PolicyLoader:
             rules_text=rules_text,
             agents_text=agents_text,
             available_skills=available_skills,
-            claude_memory_summary=memory_summary,
+            system_memory_summary=memory_summary,
             claude_memory_text=memory_snapshot.merged_text,
         )
 

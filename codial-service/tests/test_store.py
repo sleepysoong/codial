@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pytest
-from codial_service.app.store import InMemorySessionStore
+from codial_service.app.store import InMemorySessionStore, SessionStatus
 
 from tests.conftest import create_test_session
 
@@ -24,7 +24,7 @@ async def test_bind_channel_updates_record(session_store: InMemorySessionStore) 
 async def test_end_session_updates_status(session_store: InMemorySessionStore) -> None:
     record = await create_test_session(session_store, "k3")
     ended = await session_store.end_session(record.session_id)
-    assert ended.status == "ended"
+    assert ended.status == SessionStatus.ENDED
 
 
 @pytest.mark.asyncio

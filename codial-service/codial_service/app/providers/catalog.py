@@ -1,30 +1,40 @@
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Callable, Protocol
 
 from codial_service.app.providers.base import ProviderAdapter
 from codial_service.app.providers.http_bridge_adapter import HttpBridgeProviderAdapter
 from libs.common.errors import ConfigurationError
 
-KNOWN_PROVIDER_NAMES = {
-    "github-copilot-sdk",
-}
-
 
 class ProviderRuntimeSettings(Protocol):
     default_provider_name: str
-    enabled_provider_names: str
+    enabled_provider_names: list[str]  # #18 list[str]로 변경
     copilot_bridge_base_url: str
     copilot_bridge_token: str
     provider_bridge_timeout_seconds: float
 
 
-def get_enabled_provider_names(raw_value: str, *, fallback_default: str) -> list[str]:
-    parsed = _parse_csv_values(raw_value)
-    if not parsed:
-        parsed = [fallback_default]
+# 프로바이더 팩토리 테이블이에요 — 새 프로바이더를 추가할 때 여기만 수정하면 돼요 (#8 OCP)
+_ProviderFactory = Callable[["ProviderRuntimeSettings", str | None], ProviderAdapter]
 
-    unknown = [provider for provider in parsed if provider not in KNOWN_PROVIDER_NAMES]
+_PROVIDER_FACTORIES: dict[str, _ProviderFactory] = {
+    "github-copilot-sdk": lambda s, token_override: HttpBridgeProviderAdapter(
+        name="github-copilot-sdk",
+        base_url=s.copilot_bridge_base_url,
+        token=token_override if token_override is not None else s.copilot_bridge_token,
+        timeout_seconds=s.provider_bridge_timeout_seconds,
+        provider_hint="GitHub Copilot SDK",
+    ),
+}
+
+KNOWN_PROVIDER_NAMES: frozenset[str] = frozenset(_PROVIDER_FACTORIES.keys())
+
+
+def get_enabled_provider_names(names: list[str], *, fallback_default: str) -> list[str]:
+    resolved = names if names else [fallback_default]
+
+    unknown = [p for p in resolved if p not in KNOWN_PROVIDER_NAMES]
     if unknown:
         unknown_text = ", ".join(sorted(unknown))
         known_text = ", ".join(sorted(KNOWN_PROVIDER_NAMES))
@@ -32,7 +42,7 @@ def get_enabled_provider_names(raw_value: str, *, fallback_default: str) -> list
             f"알 수 없는 프로바이더가 설정됐어요: {unknown_text}. 지원 목록: {known_text}"
         )
 
-    return parsed
+    return resolved
 
 
 def choose_default_provider(preferred_provider: str | None, enabled_providers: list[str]) -> str:
@@ -54,27 +64,8 @@ def build_provider_adapters(
 
     adapters: list[ProviderAdapter] = []
     for provider_name in active_providers:
-        if provider_name == "github-copilot-sdk":
-            adapters.append(
-                HttpBridgeProviderAdapter(
-                    name="github-copilot-sdk",
-                    base_url=settings.copilot_bridge_base_url,
-                    token=copilot_token_override if copilot_token_override is not None else settings.copilot_bridge_token,
-                    timeout_seconds=settings.provider_bridge_timeout_seconds,
-                    provider_hint="GitHub Copilot SDK",
-                )
-            )
+        factory = _PROVIDER_FACTORIES.get(provider_name)
+        if factory is not None:
+            adapters.append(factory(settings, copilot_token_override))
 
     return adapters
-
-
-def _parse_csv_values(raw_value: str) -> list[str]:
-    values: list[str] = []
-    seen: set[str] = set()
-    for part in raw_value.split(","):
-        normalized = part.strip()
-        if not normalized or normalized in seen:
-            continue
-        seen.add(normalized)
-        values.append(normalized)
-    return values

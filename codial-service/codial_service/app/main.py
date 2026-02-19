@@ -19,6 +19,7 @@ from codial_service.app.providers.copilot_auth import (
     CopilotAuthSettings,
 )
 from codial_service.app.routes import router
+from codial_service.app.session_service import SessionService
 from codial_service.app.settings import settings
 from codial_service.app.store import InMemorySessionStore
 from codial_service.app.tools.defaults import build_default_tool_registry
@@ -81,6 +82,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     store = InMemorySessionStore()
     policy_loader = PolicyLoader(workspace_root=settings.workspace_root)
     codial_rule_store = CodialRuleStore(workspace_root=settings.workspace_root)
+    session_service = SessionService(
+        store=store,
+        policy_loader=policy_loader,
+        enabled_provider_names=enabled_providers,
+    )
     worker_pool = TurnWorkerPool(
         sink=sink,
         attachment_ingestor=attachment_ingestor,
@@ -95,7 +101,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.store = store
     app.state.policy_loader = policy_loader
     app.state.codial_rule_store = codial_rule_store
+    app.state.session_service = session_service
     app.state.turn_worker_pool = worker_pool
+    app.state.settings = settings
     try:
         yield
     finally:

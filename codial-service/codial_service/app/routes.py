@@ -21,13 +21,13 @@ from codial_service.app.models import (
     SetSubagentRequest,
     SubmitTurnRequest,
 )
-from codial_service.app.policy_loader import PolicyLoader, extract_agent_defaults
+from codial_service.app.session_service import SessionService
 from codial_service.app.providers.catalog import (
-    choose_default_provider,
     get_enabled_provider_names,
 )
-from codial_service.app.settings import settings
-from codial_service.app.store import InMemorySessionStore
+from codial_service.app.session_service import SessionService
+from codial_service.app.settings import Settings, settings
+from codial_service.app.store import InMemorySessionStore, SessionNotFoundError, SessionStatus
 from codial_service.app.subagent_spec import default_subagent_search_paths, discover_subagents
 from codial_service.app.turn_worker import TurnWorkerPool
 from libs.common.logging import get_logger
@@ -36,29 +36,36 @@ router = APIRouter(prefix="/v1")
 logger = get_logger("codial_service.routes")
 
 
-def _check_auth(authorization: str) -> None:
-    if authorization != f"Bearer {settings.api_token}":
+def _get_settings(request: Request) -> Settings:
+    """app.state에 등록된 Settings를 꺼내와요. (#11)"""
+    s = getattr(request.app.state, "settings", None)
+    return s if isinstance(s, Settings) else settings  # type: ignore[return-value]
+
+
+def _check_auth(request: Request, authorization: str) -> None:
+    if authorization != f"Bearer {_get_settings(request).api_token}":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="인증에 실패했어요.")
 
 
-def _load_subagent_names() -> set[str]:
-    specs = discover_subagents(default_subagent_search_paths(settings.workspace_root))
+def _load_subagent_names(request: Request) -> set[str]:
+    specs = discover_subagents(default_subagent_search_paths(_get_settings(request).workspace_root))
     return {spec.name for spec in specs}
 
 
-def _enabled_provider_names() -> list[str]:
+def _enabled_provider_names(request: Request) -> list[str]:
+    s = _get_settings(request)
     return get_enabled_provider_names(
-        settings.enabled_provider_names,
-        fallback_default=settings.default_provider_name,
+        s.enabled_provider_names,
+        fallback_default=s.default_provider_name,
     )
+
+
+def _get_session_service(request: Request) -> SessionService:
+    return request.app.state.session_service  # type: ignore[no-any-return]
 
 
 def _get_store(request: Request) -> InMemorySessionStore:
     return request.app.state.store  # type: ignore[no-any-return]
-
-
-def _get_policy_loader(request: Request) -> PolicyLoader:
-    return request.app.state.policy_loader  # type: ignore[no-any-return]
 
 
 def _get_rule_store(request: Request) -> CodialRuleStore:
@@ -71,19 +78,11 @@ async def create_session(
     req: CreateSessionRequest,
     authorization: str = Header(default=""),
 ) -> CreateSessionResponse:
-    _check_auth(authorization)
-
-    policy_snapshot = _get_policy_loader(request).load()
-    agent_defaults = extract_agent_defaults(policy_snapshot.agents_text)
-    default_provider = choose_default_provider(agent_defaults.provider, _enabled_provider_names())
-    record = await _get_store(request).create_session(
+    _check_auth(request, authorization)
+    record = await _get_session_service(request).create_session(
         req.guild_id,
         req.requester_id,
         req.idempotency_key,
-        default_provider=default_provider,
-        default_model=agent_defaults.model or "gpt-5-mini",
-        default_mcp_enabled=agent_defaults.mcp_enabled if agent_defaults.mcp_enabled is not None else True,
-        default_mcp_profile_name=agent_defaults.mcp_profile_name or "default",
     )
     logger.info("session_created", session_id=record.session_id, guild_id=req.guild_id)
     return CreateSessionResponse(session_id=record.session_id, status=record.status)
@@ -96,10 +95,10 @@ async def bind_channel(
     req: BindChannelRequest,
     authorization: str = Header(default=""),
 ) -> BindChannelResponse:
-    _check_auth(authorization)
+    _check_auth(request, authorization)
     try:
         record = await _get_store(request).bind_channel(session_id=session_id, channel_id=req.channel_id)
-    except KeyError as exc:
+    except SessionNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="세션을 찾을 수 없어요.") from exc
 
     return BindChannelResponse(
@@ -115,10 +114,10 @@ async def end_session(
     session_id: str,
     authorization: str = Header(default=""),
 ) -> EndSessionResponse:
-    _check_auth(authorization)
+    _check_auth(request, authorization)
     try:
         record = await _get_store(request).end_session(session_id=session_id)
-    except KeyError as exc:
+    except SessionNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="세션을 찾을 수 없어요.") from exc
     return EndSessionResponse(session_id=record.session_id, status=record.status)
 
@@ -130,9 +129,9 @@ async def set_provider(
     req: SetProviderRequest,
     authorization: str = Header(default=""),
 ) -> SessionConfigResponse:
-    _check_auth(authorization)
+    _check_auth(request, authorization)
 
-    enabled_providers = set(_enabled_provider_names())
+    enabled_providers = set(_enabled_provider_names(request))
     if req.provider not in enabled_providers:
         enabled_text = ", ".join(sorted(enabled_providers))
         raise HTTPException(
@@ -142,7 +141,7 @@ async def set_provider(
 
     try:
         record = await _get_store(request).set_provider(session_id=session_id, provider=req.provider)
-    except KeyError as exc:
+    except SessionNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="세션을 찾을 수 없어요.") from exc
     return SessionConfigResponse(
         session_id=record.session_id,
@@ -161,10 +160,10 @@ async def set_model(
     req: SetModelRequest,
     authorization: str = Header(default=""),
 ) -> SessionConfigResponse:
-    _check_auth(authorization)
+    _check_auth(request, authorization)
     try:
         record = await _get_store(request).set_model(session_id=session_id, model=req.model)
-    except KeyError as exc:
+    except SessionNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="세션을 찾을 수 없어요.") from exc
     return SessionConfigResponse(
         session_id=record.session_id,
@@ -183,14 +182,14 @@ async def set_mcp(
     req: SetMcpRequest,
     authorization: str = Header(default=""),
 ) -> SessionConfigResponse:
-    _check_auth(authorization)
+    _check_auth(request, authorization)
     try:
         record = await _get_store(request).set_mcp(
             session_id=session_id,
             enabled=req.enabled,
             profile_name=req.profile_name,
         )
-    except KeyError as exc:
+    except SessionNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="세션을 찾을 수 없어요.") from exc
     return SessionConfigResponse(
         session_id=record.session_id,
@@ -209,12 +208,12 @@ async def set_subagent(
     req: SetSubagentRequest,
     authorization: str = Header(default=""),
 ) -> SessionConfigResponse:
-    _check_auth(authorization)
+    _check_auth(request, authorization)
 
     requested_name = req.name.strip() if isinstance(req.name, str) else ""
     normalized_name = requested_name if requested_name else None
     if normalized_name is not None:
-        available_names = _load_subagent_names()
+        available_names = _load_subagent_names(request)
         if normalized_name not in available_names:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -223,7 +222,7 @@ async def set_subagent(
 
     try:
         record = await _get_store(request).set_subagent(session_id=session_id, subagent_name=normalized_name)
-    except KeyError as exc:
+    except SessionNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="세션을 찾을 수 없어요.") from exc
 
     return SessionConfigResponse(
@@ -241,7 +240,7 @@ async def list_codial_rules(
     request: Request,
     authorization: str = Header(default=""),
 ) -> CodialRuleResponse:
-    _check_auth(authorization)
+    _check_auth(request, authorization)
     return CodialRuleResponse(rules=_get_rule_store(request).list_rules())
 
 
@@ -251,8 +250,8 @@ async def add_codial_rule(
     req: CodialRuleAddRequest,
     authorization: str = Header(default=""),
 ) -> CodialRuleResponse:
-    _check_auth(authorization)
-    return CodialRuleResponse(rules=_get_rule_store(request).add_rule(req.rule))
+    _check_auth(request, authorization)
+    return CodialRuleResponse(rules=await _get_rule_store(request).add_rule(req.rule))
 
 
 @router.delete("/codial/rules", response_model=CodialRuleResponse)
@@ -261,9 +260,9 @@ async def remove_codial_rule(
     req: CodialRuleRemoveRequest,
     authorization: str = Header(default=""),
 ) -> CodialRuleResponse:
-    _check_auth(authorization)
+    _check_auth(request, authorization)
     try:
-        return CodialRuleResponse(rules=_get_rule_store(request).remove_rule(req.index))
+        return CodialRuleResponse(rules=await _get_rule_store(request).remove_rule(req.index))
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="규칙 번호가 올바르지 않아요.") from exc
 
@@ -275,21 +274,18 @@ async def submit_turn(
     req: SubmitTurnRequest,
     authorization: str = Header(default=""),
 ) -> dict[str, str]:
-    _check_auth(authorization)
+    _check_auth(request, authorization)
 
     worker_pool = request.app.state.turn_worker_pool
     if not isinstance(worker_pool, TurnWorkerPool):
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="작업 워커를 사용할 수 없어요.")
 
-    if req.session_id != session_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="세션 정보가 일치하지 않아요.")
-
     try:
         session_record = await _get_store(request).get_session(session_id=session_id)
-    except KeyError as exc:
+    except SessionNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="세션을 찾을 수 없어요.") from exc
 
-    if session_record.status == "ended":
+    if session_record.status == SessionStatus.ENDED:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="종료된 세션에는 요청할 수 없어요.")
 
     trace_id = str(uuid.uuid4())

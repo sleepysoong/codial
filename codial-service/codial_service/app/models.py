@@ -60,7 +60,6 @@ class TurnAttachment(BaseModel):
 
 
 class SubmitTurnRequest(BaseModel):
-    session_id: str = Field(min_length=1)
     user_id: str = Field(min_length=1)
     channel_id: str = Field(min_length=1)
     text: str | None = None

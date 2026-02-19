@@ -13,23 +13,25 @@ class CodialRuleStore:
     def list_rules(self) -> list[str]:
         return self._read_rules()
 
-    def add_rule(self, rule: str) -> list[str]:
+    async def add_rule(self, rule: str) -> list[str]:
         normalized_rule = rule.strip()
         if not normalized_rule:
             return self.list_rules()
 
-        rules = self._read_rules()
-        rules.append(normalized_rule)
-        self._write_rules(rules)
-        return rules
+        async with self._lock:
+            rules = self._read_rules()
+            rules.append(normalized_rule)
+            self._write_rules(rules)
+            return list(rules)
 
-    def remove_rule(self, index: int) -> list[str]:
-        rules = self._read_rules()
-        if not 1 <= index <= len(rules):
-            raise ValueError("index_out_of_range")
-        rules.pop(index - 1)
-        self._write_rules(rules)
-        return rules
+    async def remove_rule(self, index: int) -> list[str]:
+        async with self._lock:
+            rules = self._read_rules()
+            if not 1 <= index <= len(rules):
+                raise ValueError("index_out_of_range")
+            rules.pop(index - 1)
+            self._write_rules(rules)
+            return list(rules)
 
     def _read_rules(self) -> list[str]:
         if not self._path.exists():

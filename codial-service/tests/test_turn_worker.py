@@ -56,7 +56,7 @@ class _FakePolicyLoader(PolicyLoader):
             rules_text="",
             agents_text="",
             available_skills=[],
-            claude_memory_summary="CLAUDE.md 메모리가 없어요.",
+            system_memory_summary="CLAUDE.md 메모리가 없어요.",
             claude_memory_text="",
         )
 
@@ -75,6 +75,9 @@ class _FakeMcpClient:
             instructions=None,
             session_id="fake-session",
         )
+
+    async def ensure_initialized(self, *, client_name: str, client_version: str) -> McpInitializeResult:
+        return await self.initialize(client_name=client_name, client_version=client_version)
 
     async def list_tools(self) -> list[McpTool]:
         return [
