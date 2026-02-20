@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from codial_service.app.models import SubmitTurnRequest
 from codial_service.app.store import InMemorySessionStore, SessionStatus
-from codial_service.app.turn_worker import TurnWorkerPool
+from codial_service.modules.turns.worker import TurnWorkerPool
 
 
 class SessionEndedError(RuntimeError):

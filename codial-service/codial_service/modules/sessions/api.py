@@ -15,7 +15,7 @@ from codial_service.app.models import (
     SetSubagentRequest,
 )
 from codial_service.app.store import SessionNotFoundError, SessionRecord
-from codial_service.modules.common.deps import get_sessions_service, require_auth
+from codial_service.modules.common.deps import get_session_service, require_auth
 from codial_service.modules.sessions.service import ProviderNotEnabledError, SubagentNotFoundError
 from libs.common.logging import get_logger
 
@@ -41,7 +41,7 @@ async def create_session(
     authorization: str = Header(default=""),
 ) -> CreateSessionResponse:
     require_auth(request, authorization)
-    record = await get_sessions_service(request).create_session(
+    record = await get_session_service(request).create_session(
         req.guild_id,
         req.requester_id,
         req.idempotency_key,
@@ -59,7 +59,7 @@ async def bind_channel(
 ) -> BindChannelResponse:
     require_auth(request, authorization)
     try:
-        record = await get_sessions_service(request).bind_channel(session_id=session_id, channel_id=req.channel_id)
+        record = await get_session_service(request).bind_channel(session_id=session_id, channel_id=req.channel_id)
     except SessionNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="세션을 찾을 수 없어요.") from exc
 
@@ -78,7 +78,7 @@ async def end_session(
 ) -> EndSessionResponse:
     require_auth(request, authorization)
     try:
-        record = await get_sessions_service(request).end_session(session_id=session_id)
+        record = await get_session_service(request).end_session(session_id=session_id)
     except SessionNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="세션을 찾을 수 없어요.") from exc
     return EndSessionResponse(session_id=record.session_id, status=record.status)
@@ -94,7 +94,7 @@ async def set_provider(
     require_auth(request, authorization)
 
     try:
-        record = await get_sessions_service(request).set_provider(session_id=session_id, provider=req.provider)
+        record = await get_session_service(request).set_provider(session_id=session_id, provider=req.provider)
     except ProviderNotEnabledError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except SessionNotFoundError as exc:
@@ -111,7 +111,7 @@ async def set_model(
 ) -> SessionConfigResponse:
     require_auth(request, authorization)
     try:
-        record = await get_sessions_service(request).set_model(session_id=session_id, model=req.model)
+        record = await get_session_service(request).set_model(session_id=session_id, model=req.model)
     except SessionNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="세션을 찾을 수 없어요.") from exc
     return _to_session_config_response(record)
@@ -126,7 +126,7 @@ async def set_mcp(
 ) -> SessionConfigResponse:
     require_auth(request, authorization)
     try:
-        record = await get_sessions_service(request).set_mcp(
+        record = await get_session_service(request).set_mcp(
             session_id=session_id,
             enabled=req.enabled,
             profile_name=req.profile_name,
@@ -146,7 +146,7 @@ async def set_subagent(
     require_auth(request, authorization)
 
     try:
-        record = await get_sessions_service(request).set_subagent(
+        record = await get_session_service(request).set_subagent(
             session_id=session_id,
             name=req.name,
         )

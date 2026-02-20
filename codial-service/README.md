@@ -33,7 +33,8 @@ codial_service/
     └── health/
 ```
 
-`app/routes.py`는 하위 호환을 위한 alias이고, 실제 라우팅 조립은 `modules`를 사용해요.
+`app/routes.py`는 하위 호환 alias이고, 실제 라우팅 조립은 `modules`를 사용해요.
+서비스 인스턴스는 `bootstrap/container.py`에서 시작 시 1회 생성하고 `app.state`로 주입해요.
 
 ## 실행
 

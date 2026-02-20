@@ -15,11 +15,12 @@ from codial_service.app.providers.copilot_auth import (
     CopilotAuthBootstrapper,
     CopilotAuthSettings,
 )
-from codial_service.app.session_service import SessionService
 from codial_service.app.settings import Settings
 from codial_service.app.store import InMemorySessionStore
 from codial_service.app.tools.defaults import build_default_tool_registry
-from codial_service.app.turn_worker import TurnWorkerPool
+from codial_service.modules.sessions.service import SessionService
+from codial_service.modules.turns.service import TurnsService
+from codial_service.modules.turns.worker import TurnWorkerPool
 
 
 @dataclass(slots=True)
@@ -31,6 +32,7 @@ class RuntimeComponents:
     policy_loader: PolicyLoader
     codial_rule_store: CodialRuleStore
     session_service: SessionService
+    turns_service: TurnsService
     worker_pool: TurnWorkerPool
 
 
@@ -93,6 +95,7 @@ async def build_runtime_components(settings: Settings) -> RuntimeComponents:
         store=store,
         policy_loader=policy_loader,
         enabled_provider_names=enabled_providers,
+        workspace_root=settings.workspace_root,
     )
 
     worker_pool = TurnWorkerPool(
@@ -105,6 +108,7 @@ async def build_runtime_components(settings: Settings) -> RuntimeComponents:
         worker_count=settings.turn_worker_count,
         workspace_root=settings.workspace_root,
     )
+    turns_service = TurnsService(store=store, worker_pool=worker_pool)
 
     return RuntimeComponents(
         sink=sink,
@@ -114,5 +118,6 @@ async def build_runtime_components(settings: Settings) -> RuntimeComponents:
         policy_loader=policy_loader,
         codial_rule_store=codial_rule_store,
         session_service=session_service,
+        turns_service=turns_service,
         worker_pool=worker_pool,
     )

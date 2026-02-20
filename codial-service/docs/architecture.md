@@ -6,7 +6,7 @@
 
 - 기능(Feature) 단위로 API를 분리해요.
 - 조립(Bootstrap)과 비즈니스 로직을 분리해요.
-- 기존 경로 호환성을 유지하면서 점진적으로 이동해요.
+- 서비스 인스턴스는 시작 시 한 번만 만들고 `app.state`에 주입해요.
 
 ## 디렉터리 트리
 
@@ -39,11 +39,12 @@ codial_service/
 ## 요청 흐름
 
 1. `app/main.py`가 FastAPI 앱을 만들고 `modules` 라우터를 등록해요.
-2. `bootstrap/lifespan.py`가 시작 시 `bootstrap/container.py`로 컴포넌트를 조립해요.
-3. `modules/*/api.py`는 인증/HTTP 매핑을 담당하고, 실제 유스케이스는 `service.py`로 위임해요.
+2. `bootstrap/lifespan.py`가 시작 시 `bootstrap/container.py`로 컴포넌트와 서비스를 1회 조립해요.
+3. `modules/*/api.py`는 인증/HTTP 매핑만 담당하고, 실제 유스케이스는 `app.state`의 서비스에 위임해요.
 4. 턴 처리 요청은 `TurnWorkerPool` 큐로 전달되고, `TurnEngine`이 실제 턴 오케스트레이션을 수행해요.
 
 ## 하위 호환성
 
 - 기존 import 경로 `codial_service.app.routes.router`는 유지돼요.
+- 기존 import 경로 `codial_service.app.session_service.SessionService`는 유지돼요.
 - 내부 구현은 `codial_service.modules.build_api_router()`로 조립해요.

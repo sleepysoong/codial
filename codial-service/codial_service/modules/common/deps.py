@@ -3,13 +3,10 @@ from __future__ import annotations
 from fastapi import HTTPException, Request, status
 
 from codial_service.app.codial_rules import CodialRuleStore
-from codial_service.app.providers.catalog import get_enabled_provider_names
-from codial_service.app.session_service import SessionService
 from codial_service.app.settings import Settings, settings
-from codial_service.app.store import InMemorySessionStore
-from codial_service.app.turn_worker import TurnWorkerPool
-from codial_service.modules.sessions.service import SessionsService
+from codial_service.modules.sessions.service import SessionService
 from codial_service.modules.turns.service import TurnsService
+from codial_service.modules.turns.worker import TurnWorkerPool
 
 
 def get_settings(request: Request) -> Settings:
@@ -24,24 +21,11 @@ def require_auth(request: Request, authorization: str) -> None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="인증에 실패했어요.")
 
 
-def enabled_provider_names(request: Request) -> list[str]:
-    app_settings = get_settings(request)
-    return get_enabled_provider_names(
-        app_settings.enabled_provider_names,
-        fallback_default=app_settings.default_provider_name,
-    )
-
-
-def get_session_service(request: Request) -> SessionService:
-    return request.app.state.session_service  # type: ignore[no-any-return]
-
-
-def get_store(request: Request) -> InMemorySessionStore:
-    return request.app.state.store  # type: ignore[no-any-return]
-
-
 def get_rule_store(request: Request) -> CodialRuleStore:
-    return request.app.state.codial_rule_store  # type: ignore[no-any-return]
+    rule_store = getattr(request.app.state, "codial_rule_store", None)
+    if not isinstance(rule_store, CodialRuleStore):
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="규칙 저장소를 사용할 수 없어요.")
+    return rule_store
 
 
 def get_worker_pool(request: Request) -> TurnWorkerPool:
@@ -51,17 +35,15 @@ def get_worker_pool(request: Request) -> TurnWorkerPool:
     return worker_pool
 
 
-def get_sessions_service(request: Request) -> SessionsService:
-    return SessionsService(
-        store=get_store(request),
-        session_defaults_service=get_session_service(request),
-        enabled_provider_names=enabled_provider_names(request),
-        workspace_root=get_settings(request).workspace_root,
-    )
+def get_session_service(request: Request) -> SessionService:
+    session_service = getattr(request.app.state, "session_service", None)
+    if not isinstance(session_service, SessionService):
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="세션 서비스를 사용할 수 없어요.")
+    return session_service
 
 
 def get_turns_service(request: Request) -> TurnsService:
-    return TurnsService(
-        store=get_store(request),
-        worker_pool=get_worker_pool(request),
-    )
+    turns_service = getattr(request.app.state, "turns_service", None)
+    if not isinstance(turns_service, TurnsService):
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="턴 서비스를 사용할 수 없어요.")
+    return turns_service

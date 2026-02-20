@@ -19,6 +19,7 @@ def create_lifespan(settings: Settings) -> Callable[[FastAPI], AbstractAsyncCont
         app.state.policy_loader = runtime.policy_loader
         app.state.codial_rule_store = runtime.codial_rule_store
         app.state.session_service = runtime.session_service
+        app.state.turns_service = runtime.turns_service
         app.state.turn_worker_pool = runtime.worker_pool
         app.state.settings = settings
 

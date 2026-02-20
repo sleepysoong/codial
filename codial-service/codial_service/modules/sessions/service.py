@@ -2,9 +2,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from codial_service.app.session_service import SessionService
+from codial_service.app.policy_loader import PolicyLoader, extract_agent_defaults
+from codial_service.app.providers.catalog import choose_default_provider
 from codial_service.app.store import InMemorySessionStore, SessionRecord
 from codial_service.app.subagent_spec import default_subagent_search_paths, discover_subagents
+
+_DEFAULT_MODEL = "gpt-5-mini"
+_DEFAULT_MCP_ENABLED = True
+_DEFAULT_MCP_PROFILE = "default"
 
 
 class ProviderNotEnabledError(ValueError):
@@ -15,20 +20,21 @@ class SubagentNotFoundError(LookupError):
     """요청한 서브에이전트를 찾지 못했어요."""
 
 
-class SessionsService:
+class SessionService:
     """세션 관련 유스케이스를 모아요."""
 
     def __init__(
         self,
         *,
         store: InMemorySessionStore,
-        session_defaults_service: SessionService,
+        policy_loader: PolicyLoader,
         enabled_provider_names: list[str],
         workspace_root: str,
     ) -> None:
         self._store = store
-        self._session_defaults_service = session_defaults_service
-        self._enabled_provider_names = set(enabled_provider_names)
+        self._policy_loader = policy_loader
+        self._enabled_provider_names = list(enabled_provider_names)
+        self._enabled_provider_name_set = set(enabled_provider_names)
         self._workspace_root = Path(workspace_root)
 
     async def create_session(
@@ -37,10 +43,29 @@ class SessionsService:
         requester_id: str,
         idempotency_key: str,
     ) -> SessionRecord:
-        return await self._session_defaults_service.create_session(
+        policy_snapshot = self._policy_loader.load()
+        agent_defaults = extract_agent_defaults(policy_snapshot.agents_text)
+
+        default_provider = choose_default_provider(
+            agent_defaults.provider,
+            self._enabled_provider_names,
+        )
+        default_model = agent_defaults.model or _DEFAULT_MODEL
+        default_mcp_enabled = (
+            agent_defaults.mcp_enabled
+            if agent_defaults.mcp_enabled is not None
+            else _DEFAULT_MCP_ENABLED
+        )
+        default_mcp_profile_name = agent_defaults.mcp_profile_name or _DEFAULT_MCP_PROFILE
+
+        return await self._store.create_session(
             guild_id,
             requester_id,
             idempotency_key,
+            default_provider=default_provider,
+            default_model=default_model,
+            default_mcp_enabled=default_mcp_enabled,
+            default_mcp_profile_name=default_mcp_profile_name,
         )
 
     async def bind_channel(self, *, session_id: str, channel_id: str) -> SessionRecord:
@@ -50,8 +75,8 @@ class SessionsService:
         return await self._store.end_session(session_id=session_id)
 
     async def set_provider(self, *, session_id: str, provider: str) -> SessionRecord:
-        if provider not in self._enabled_provider_names:
-            enabled_text = ", ".join(sorted(self._enabled_provider_names))
+        if provider not in self._enabled_provider_name_set:
+            enabled_text = ", ".join(sorted(self._enabled_provider_name_set))
             raise ProviderNotEnabledError(f"현재 사용할 수 없는 프로바이더예요. 사용 가능 목록: {enabled_text}")
         return await self._store.set_provider(session_id=session_id, provider=provider)
 
